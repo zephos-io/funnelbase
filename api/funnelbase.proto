@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package requester;
+
+option go_package = "zephos/funnelbase/api";
+
+message Headers {
+  string key = 1;
+  string value = 2;
+}
+
+enum RequestMethod {
+  GET = 0;
+  POST = 1;
+}
+
+enum RequestPriority {
+  LOW = 0;
+  MEDIUM = 1;
+  HIGH = 2;
+}
+
+service Funnelbase {
+  rpc QueueRequest (Request) returns (Response) {}
+}
+
+message Request {
+  string url = 1;
+  RequestMethod method = 2;
+  string authorization = 3;
+  repeated Headers headers = 4;
+  RequestPriority priority = 5;
+  int64 cacheLifespan = 6;
+  int64 cacheBypass = 7;
+}
+
+
+message Response {
+  int32 statusCode = 1;
+  string body = 2;
+  repeated Headers headers = 3;
+}

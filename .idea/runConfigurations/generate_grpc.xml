@@ -1,0 +1,8 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="generate grpc" type="MAKEFILE_TARGET_RUN_CONFIGURATION" factoryName="Makefile">
+    <makefile filename="\\wsl$\Ubuntu-20.04\home\jamie\repos\funnelbase\Makefile" target="generate-grpc" workingDirectory="\\wsl$\Ubuntu-20.04\home\jamie\repos\funnelbase" arguments="">
+      <envs />
+    </makefile>
+    <method v="2" />
+  </configuration>
+</component>
