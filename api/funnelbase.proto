@@ -22,6 +22,7 @@ enum RequestPriority {
 
 service Funnelbase {
   rpc QueueRequest (Request) returns (Response) {}
+  rpc InitialiseRateLimit (RateLimit) returns (RateLimitResponse) {}
 }
 
 message Request {
@@ -29,11 +30,13 @@ message Request {
   RequestMethod method = 2;
   string authorization = 3;
   repeated Headers headers = 4;
-  RequestPriority priority = 5;
+  //  RequestPriority priority = 5;
   // time in milliseconds for the response to exist in cache assuming its successful
   // if no cacheLifespan is provided, it will not access any existing cache and it wont set any cache
   int64 cacheLifespan = 6;
-  int64 cacheBypass = 7;
+  //  int64 cacheBypass = 7;
+  // time in milliseconds it must complete the entire request procedure otherwise it should cancel
+  int64 timeout = 8;
 }
 
 
@@ -42,5 +45,20 @@ message Response {
   bool cacheHit = 2;
   string body = 3;
   repeated Headers headers = 4;
+
+}
+
+message RateLimit {
+  // status code from the api to tell the client to backoff as its hitting rate limits
+  int32 backoffStatusCode = 1; // 429
+  // the header received from the api telling the client how long to wait before sending more requests
+  string retryAfterHeader = 2; // Retry-After
+  // time in milliseconds that the rate limit is based on
+  int64 rollingWindowPeriod = 3;
+  // number of requests per rollingWindowPeriod that will be allowed through
+  int32 rollingWindowLimit = 4;
+}
+
+message RateLimitResponse {
 
 }
