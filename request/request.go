@@ -1,13 +1,24 @@
 package request
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	pb "zephos/funnelbase/api"
 )
+
+type Response struct {
+	StatusCode int
+	Body       string
+	Headers    http.Header
+	Request    *http.Request
+	CacheHit   bool
+}
 
 func ValidateRequest(request *pb.Request) error {
 	if request.Url == "" {
@@ -22,7 +33,7 @@ func ValidateRequest(request *pb.Request) error {
 	return nil
 }
 
-func QueueRequest(req *pb.Request) (*pb.Response, error) {
+func QueueRequest(req *pb.Request) (*Response, error) {
 	if err := ValidateRequest(req); err != nil {
 		return nil, err
 	}
@@ -34,12 +45,13 @@ func QueueRequest(req *pb.Request) (*pb.Response, error) {
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	return resp, nil
+}
 
+func (resp *Response) ConvertResponseToGRPC() (*pb.Response, error) {
 	var respHeaders []*pb.Headers
 
-	for key, values := range resp.Header {
+	for key, values := range resp.Headers {
 		respHeaders = append(respHeaders, &pb.Headers{
 			Key:   key,
 			Value: values[0],
@@ -47,13 +59,14 @@ func QueueRequest(req *pb.Request) (*pb.Response, error) {
 	}
 
 	return &pb.Response{
-		StatusCode: int32(resp.StatusCode),
-		Body:       string(body),
-		Headers:    respHeaders,
+		//StatusCode: int32(resp.StatusCode),
+		Body: resp.Body,
+		//Headers:    respHeaders,
+		CacheHit: resp.CacheHit,
 	}, nil
 }
 
-func MakeRequest(req *pb.Request) (*http.Response, error) {
+func MakeRequest(req *pb.Request) (*Response, error) {
 	client := &http.Client{}
 
 	u := req.Url
@@ -69,5 +82,33 @@ func MakeRequest(req *pb.Request) (*http.Response, error) {
 		httpReq.Header.Add("Authorization", req.Authorization)
 	}
 
-	return client.Do(httpReq)
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	bodyStr := string(body)
+
+	if strings.Contains(resp.Header.Get("Content-Type"), "application/json") {
+		buffer := new(bytes.Buffer)
+		err := json.Compact(buffer, body)
+		// if it fails to compact json (may not even be json)
+		if err == nil {
+			bodyStr = buffer.String()
+		}
+	}
+
+	return &Response{
+		StatusCode: resp.StatusCode,
+		Body:       bodyStr,
+		Headers:    resp.Header,
+		Request:    resp.Request,
+		CacheHit:   false,
+	}, nil
 }
