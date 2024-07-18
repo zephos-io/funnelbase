@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
@@ -27,13 +26,18 @@ func main() {
 	defer conn.Close()
 	client := pb.NewFunnelbaseClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	for i := 0; i < 100; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-	msg, err := client.QueueRequest(ctx, &pb.Request{Url: "https://api.sampleapis.com/coffee/hot", Method: pb.RequestMethod_GET, CacheLifespan: 60000})
-	if err != nil {
-		panic(err)
+		_, err := client.QueueRequest(ctx, &pb.Request{Url: "http://localhost:3333/v1/test", Method: pb.RequestMethod_GET})
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println("successful request")
+
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	fmt.Println(msg.CacheHit)
 }
