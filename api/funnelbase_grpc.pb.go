@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	Funnelbase_QueueRequest_FullMethodName = "/requester.Funnelbase/QueueRequest"
+	Funnelbase_QueueRequest_FullMethodName        = "/requester.Funnelbase/QueueRequest"
+	Funnelbase_InitialiseRateLimit_FullMethodName = "/requester.Funnelbase/InitialiseRateLimit"
 )
 
 // FunnelbaseClient is the client API for Funnelbase service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type FunnelbaseClient interface {
 	QueueRequest(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
+	InitialiseRateLimit(ctx context.Context, in *RateLimit, opts ...grpc.CallOption) (*RateLimitResponse, error)
 }
 
 type funnelbaseClient struct {
@@ -47,11 +49,22 @@ func (c *funnelbaseClient) QueueRequest(ctx context.Context, in *Request, opts .
 	return out, nil
 }
 
+func (c *funnelbaseClient) InitialiseRateLimit(ctx context.Context, in *RateLimit, opts ...grpc.CallOption) (*RateLimitResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RateLimitResponse)
+	err := c.cc.Invoke(ctx, Funnelbase_InitialiseRateLimit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FunnelbaseServer is the server API for Funnelbase service.
 // All implementations must embed UnimplementedFunnelbaseServer
 // for forward compatibility
 type FunnelbaseServer interface {
 	QueueRequest(context.Context, *Request) (*Response, error)
+	InitialiseRateLimit(context.Context, *RateLimit) (*RateLimitResponse, error)
 	mustEmbedUnimplementedFunnelbaseServer()
 }
 
@@ -61,6 +74,9 @@ type UnimplementedFunnelbaseServer struct {
 
 func (UnimplementedFunnelbaseServer) QueueRequest(context.Context, *Request) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueueRequest not implemented")
+}
+func (UnimplementedFunnelbaseServer) InitialiseRateLimit(context.Context, *RateLimit) (*RateLimitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InitialiseRateLimit not implemented")
 }
 func (UnimplementedFunnelbaseServer) mustEmbedUnimplementedFunnelbaseServer() {}
 
@@ -93,6 +109,24 @@ func _Funnelbase_QueueRequest_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Funnelbase_InitialiseRateLimit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RateLimit)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FunnelbaseServer).InitialiseRateLimit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Funnelbase_InitialiseRateLimit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FunnelbaseServer).InitialiseRateLimit(ctx, req.(*RateLimit))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Funnelbase_ServiceDesc is the grpc.ServiceDesc for Funnelbase service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -103,6 +137,10 @@ var Funnelbase_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueueRequest",
 			Handler:    _Funnelbase_QueueRequest_Handler,
+		},
+		{
+			MethodName: "InitialiseRateLimit",
+			Handler:    _Funnelbase_InitialiseRateLimit_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

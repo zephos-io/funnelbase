@@ -5,7 +5,7 @@ import (
 )
 
 type Redis struct {
-	*redis.Client
+	client *redis.Client
 }
 
 func InitialiseClient() *Redis {

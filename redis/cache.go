@@ -18,7 +18,7 @@ type CachedResponse struct {
 }
 
 func (r *Redis) CacheResponse(resp *request.Response, cacheLifespan time.Duration) error {
-	err := r.HSet(ctx, resp.Request.URL.String(), &CachedResponse{
+	err := r.client.HSet(ctx, resp.Request.URL.String(), &CachedResponse{
 		Body:       resp.Body,
 		StatusCode: resp.StatusCode,
 	}).Err()
@@ -27,11 +27,11 @@ func (r *Redis) CacheResponse(resp *request.Response, cacheLifespan time.Duratio
 		return err
 	}
 
-	return r.Expire(ctx, resp.Request.URL.String(), cacheLifespan).Err()
+	return r.client.Expire(ctx, resp.Request.URL.String(), cacheLifespan).Err()
 }
 
 func (r *Redis) CheckCache(req *pb.Request) (*CachedResponse, error) {
-	res := r.HGet(ctx, req.Url, "body")
+	res := r.client.HGet(ctx, req.Url, "body")
 
 	if errors.Is(res.Err(), redis.Nil) {
 		return nil, nil

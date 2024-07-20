@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
@@ -26,16 +27,33 @@ func main() {
 	defer conn.Close()
 	client := pb.NewFunnelbaseClient(conn)
 
-	for i := 0; i < 100; i++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+	for i := 0; i < 1000; i++ {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
 
-		_, err := client.QueueRequest(ctx, &pb.Request{Url: "http://localhost:3333/v1/test", Method: pb.RequestMethod_GET})
-		if err != nil {
-			panic(err)
-		}
+			priority := pb.RequestPriority_LOW
 
-		log.Println("successful request")
+			// every 5th request should be high priority
+			if i%5 == 0 {
+				priority = pb.RequestPriority_HIGH
+			}
+
+			resp, err := client.QueueRequest(ctx, &pb.Request{
+				Url:       fmt.Sprintf("http://localhost:3333/v1/test?index=%d", i+1),
+				Method:    pb.RequestMethod_GET,
+				RateLimit: "spotify_rolling_30s",
+				Priority:  priority,
+			})
+			if err != nil {
+				//panic(err)
+				log.Println("failed request", i+1, err)
+			} else {
+				log.Println("successful request", i+1, resp.Body)
+
+			}
+
+		}()
 
 		time.Sleep(500 * time.Millisecond)
 	}

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -37,8 +36,6 @@ func QueueRequest(req *pb.Request) (*Response, error) {
 	if err := ValidateRequest(req); err != nil {
 		return nil, err
 	}
-
-	log.Printf("Received: %v", req.GetUrl())
 
 	resp, err := MakeRequest(req)
 	if err != nil {
