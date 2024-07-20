@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    volumes:
+      - ./prometheus.yml/:/etc/prometheus/config.yml
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/config.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=180d
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    ports:
+      - mode: host
+        target: 9090
+        published: 9090
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  #    network_mode: host
+  #    network_mode: host
+
+  grafana:
+    image: grafana/grafana:10.1.9
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - mode: host
+        target: 3000
+        published: 3000
+
+volumes:
+  prometheus_data: { }
+  grafana_data: { }

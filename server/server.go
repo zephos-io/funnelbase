@@ -7,8 +7,8 @@ import (
 	"time"
 	pb "zephos/funnelbase/api"
 	"zephos/funnelbase/rate_limiter"
-	"zephos/funnelbase/redis"
 	"zephos/funnelbase/request"
+	"zephos/funnelbase/services/redis"
 )
 
 type Server struct {
@@ -68,17 +68,10 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (*pb.Respons
 
 	log.Println("released", req.Url, duration)
 
-	//log.Println("sleeping for ", sleepTime)
-	//time.Sleep(sleepTime)
-
 	resp, err := request.QueueRequest(req)
 	if err != nil {
 		return nil, err
 	}
-
-	//s.RateLimiter.IncrementUsed()
-	//s.Redis.Increment(30*time.Second, "test", 1)
-	//fmt.Println(s.RateLimiter.GetUsed())
 
 	if resp.StatusCode == 200 && req.CacheLifespan > 0 {
 		// cache will default to 0ms if no time is provided

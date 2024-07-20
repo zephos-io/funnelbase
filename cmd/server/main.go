@@ -10,8 +10,9 @@ import (
 	"time"
 	pb "zephos/funnelbase/api"
 	"zephos/funnelbase/rate_limiter"
-	"zephos/funnelbase/redis"
 	"zephos/funnelbase/server"
+	"zephos/funnelbase/services/prometheus"
+	"zephos/funnelbase/services/redis"
 )
 
 var (
@@ -23,8 +24,11 @@ func main() {
 
 	r := redis.InitialiseClient()
 
-	rl := rate_limiter.New("spotify", r)
-	rl.AddLimit("spotify_rolling_30s", 30*time.Second, 15)
+	go prometheus.ListenAndServe()
+	//prometheus.Record()
+
+	rl := rate_limiter.New("spotify")
+	rl.AddLimit("rolling_30s", 30*time.Second, 15)
 
 	rl.StartQueueHandlers()
 

@@ -1,0 +1,17 @@
+# my global config
+global:
+  scrape_interval: 15s # By default, scrape targets every 15 seconds.
+  evaluation_interval: 15s # By default, scrape targets every 15 seconds.
+
+## A scrape configuration containing exactly one endpoint to scrape:
+## Here it's Prometheus itself.
+scrape_configs:
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: [ 'prometheus:9090' ]
+
+  - job_name: 'funnelbase'
+    static_configs:
+      ## ip addr show eth0
+      - targets: [ '172.27.10.226:2112' ]

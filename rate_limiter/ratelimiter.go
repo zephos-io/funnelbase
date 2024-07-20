@@ -3,21 +3,31 @@ package rate_limiter
 import (
 	"context"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"log"
 	"strings"
 	"time"
 	pb "zephos/funnelbase/api"
-	"zephos/funnelbase/redis"
 	"zephos/funnelbase/util"
+)
+
+var (
+	reqsAllowed = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "rate_limiter_requests_allowed",
+			Help: "The total number of requests allowed through the rate limiter",
+		}, []string{"rate_limiter_name", "limit_name"},
+	)
 )
 
 type RateLimiter struct {
 	name   string
-	redis  *redis.Redis
 	limits []*limit
 }
 
 type limit struct {
+	rateLimiter *RateLimiter
 	name        string
 	lastRequest time.Time
 	//queue       chan *rateLimitRequest
@@ -26,10 +36,11 @@ type limit struct {
 }
 
 type rule struct {
+	limit           *limit
 	name            string
 	interval        time.Duration
 	isRollingWindow bool
-	limit           int32
+	reqLimit        int32
 	used            int32
 	speed           float32
 }
@@ -40,10 +51,11 @@ type queuedRequest struct {
 	ctx     context.Context
 }
 
-func New(name string, r *redis.Redis) *RateLimiter {
+func New(name string) *RateLimiter {
+	//prometheus.MustRegister(reqsAllowed)
+
 	return &RateLimiter{
-		name:  name,
-		redis: r,
+		name: name,
 	}
 }
 
@@ -52,7 +64,7 @@ func (rl *RateLimiter) AddLimit(name string, interval time.Duration, requestLimi
 		name:            name,
 		interval:        interval,
 		isRollingWindow: true,
-		limit:           requestLimit,
+		reqLimit:        requestLimit,
 		used:            0,
 		speed:           1.0,
 	}
@@ -63,6 +75,9 @@ func (rl *RateLimiter) AddLimit(name string, interval time.Duration, requestLimi
 		//queue:       make(PriorityQueue),
 		//queue:       make(chan *rateLimitRequest),
 	}
+
+	rule.limit = limit
+	limit.rateLimiter = rl
 
 	//heap.Init(&limit.queue)
 
@@ -85,30 +100,10 @@ func (rl *RateLimiter) StartQueueHandlers() {
 }
 
 func (l *limit) queueHandler() {
-	//for req := range l.queue {
-	//	//log.Println("req received from queue", req)
-	//	waitTime := 2 * time.Second
-	//	time.Sleep(waitTime)
-	//	req.release <- waitTime
-	//}
-	//for {
-	//	//for l.queue.Len() > 0 {
-	//	//	req := heap.Pop(&l.queue).(*queuedRequest)
-	//	//	//fmt.Printf("%.2d\n", item.priority)
-	//	//	//log.Println("req received from queue", req.priority)
-	//	//	waitTime := 2 * time.Second
-	//	//	time.Sleep(waitTime)
-	//	//	req.release <- waitTime
-	//	//}
-	//}
+	r := l.rules[0]
+	timeBetweenReqs := time.Duration(r.interval.Milliseconds()/int64(r.reqLimit)) * time.Millisecond
 
-	//for qr := l.queue.RemoveWait(); qr != nil; qr = l.queue.RemoveWait() {
-	//	qr := qr.(*queuedRequest)
-	//	log.Println("req received from queue", qr.request.Url)
-	//	waitTime := 2 * time.Second
-	//	time.Sleep(waitTime)
-	//	qr.release <- waitTime
-	//}
+	labeledReqsAllowed := reqsAllowed.WithLabelValues(l.rateLimiter.name, l.name)
 
 	for {
 		if l.queue.Len() > 0 {
@@ -118,64 +113,29 @@ func (l *limit) queueHandler() {
 				qr := r.(*queuedRequest)
 				log.Println("req received from queue", qr.request.Url)
 
-				waitTime := 5 * time.Second
+				allowedNextReq := l.lastRequest.Add(timeBetweenReqs)
+
+				timeUntilNextAllowed := allowedNextReq.Sub(time.Now())
+
+				waitTime := timeUntilNextAllowed
+
+				fmt.Println("sleeping for ", waitTime)
 
 				select {
 				case <-qr.ctx.Done():
 					fmt.Println("stopping sleep due to context timeout")
 				case <-time.After(waitTime):
 					qr.release <- waitTime
-
+					l.lastRequest = time.Now()
+					//reqsAllowed.
+					//	//reqsAllowed.Inc()
+					labeledReqsAllowed.Inc()
 				}
 
 			}
 		}
 	}
 }
-
-//func (rl *RateLimiter) IncrementUsed() {
-//	foundRule := rl.limits[0].rules[0]
-//	window := foundRule.interval
-//
-//	_, _ = rl.redis.Decrement(window, foundRule.name, "pending", 1)
-//	_, _ = rl.redis.Increment(window, foundRule.name, "used", 1)
-//	_, _ = rl.redis.SetLastRequestTime(window, foundRule.name)
-//}
-
-//func (rl *RateLimiter) LimitRequest() time.Duration {
-//	foundRule := rl.limits[0].rules[0]
-//	window := foundRule.interval
-//
-//	currentPendingCount, _ := rl.redis.Increment(window, foundRule.name, "pending", 1)
-//	//currentUsedCountStr, _ := rl.redis.Get(window, foundRule.name, "used")
-//	//currentUsedCount, _ := strconv.Atoi(currentUsedCountStr)
-//	lastRequestTimeStr, _ := rl.redis.Get(window, foundRule.name, "last_request_time")
-//
-//	lastRequestTime, _ := time.Parse(time.RFC3339, lastRequestTimeStr)
-//
-//	//now := time.Now()
-//	//timeUntilNextWindow := now.Truncate(window).Add(window).UnixMilli() - now.UnixMilli()
-//	//
-//	//remainingRequests := int64(foundRule.limit - currentPendingCount - int32(currentUsedCount))
-//	//
-//	//if remainingRequests <= 0 {
-//	//	return time.Duration(timeUntilNextWindow) * time.Millisecond
-//	//}
-//	//
-//	//sleepTime := timeUntilNextWindow / remainingRequests
-//
-//	msBetweenRequests := window.Milliseconds() / int64(foundRule.limit)
-//
-//	msSleepTime := int64(currentPendingCount) * msBetweenRequests
-//
-//	sleepTime := time.Duration(msSleepTime) * time.Millisecond
-//
-//	if time.Now().Sub(lastRequestTime) > sleepTime {
-//		return 0
-//	}
-//
-//	return sleepTime
-//}
 
 var count = 0
 
