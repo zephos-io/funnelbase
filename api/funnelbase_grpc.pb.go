@@ -19,8 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	Funnelbase_QueueRequest_FullMethodName        = "/requester.Funnelbase/QueueRequest"
-	Funnelbase_InitialiseRateLimit_FullMethodName = "/requester.Funnelbase/InitialiseRateLimit"
+	Funnelbase_QueueRequest_FullMethodName = "/requester.Funnelbase/QueueRequest"
+	Funnelbase_AddRateLimit_FullMethodName = "/requester.Funnelbase/AddRateLimit"
 )
 
 // FunnelbaseClient is the client API for Funnelbase service.
@@ -28,7 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type FunnelbaseClient interface {
 	QueueRequest(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
-	InitialiseRateLimit(ctx context.Context, in *RateLimit, opts ...grpc.CallOption) (*RateLimitResponse, error)
+	AddRateLimit(ctx context.Context, in *RateLimit, opts ...grpc.CallOption) (*RateLimitResponse, error)
 }
 
 type funnelbaseClient struct {
@@ -49,10 +49,10 @@ func (c *funnelbaseClient) QueueRequest(ctx context.Context, in *Request, opts .
 	return out, nil
 }
 
-func (c *funnelbaseClient) InitialiseRateLimit(ctx context.Context, in *RateLimit, opts ...grpc.CallOption) (*RateLimitResponse, error) {
+func (c *funnelbaseClient) AddRateLimit(ctx context.Context, in *RateLimit, opts ...grpc.CallOption) (*RateLimitResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RateLimitResponse)
-	err := c.cc.Invoke(ctx, Funnelbase_InitialiseRateLimit_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Funnelbase_AddRateLimit_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (c *funnelbaseClient) InitialiseRateLimit(ctx context.Context, in *RateLimi
 // for forward compatibility
 type FunnelbaseServer interface {
 	QueueRequest(context.Context, *Request) (*Response, error)
-	InitialiseRateLimit(context.Context, *RateLimit) (*RateLimitResponse, error)
+	AddRateLimit(context.Context, *RateLimit) (*RateLimitResponse, error)
 	mustEmbedUnimplementedFunnelbaseServer()
 }
 
@@ -75,8 +75,8 @@ type UnimplementedFunnelbaseServer struct {
 func (UnimplementedFunnelbaseServer) QueueRequest(context.Context, *Request) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueueRequest not implemented")
 }
-func (UnimplementedFunnelbaseServer) InitialiseRateLimit(context.Context, *RateLimit) (*RateLimitResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method InitialiseRateLimit not implemented")
+func (UnimplementedFunnelbaseServer) AddRateLimit(context.Context, *RateLimit) (*RateLimitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddRateLimit not implemented")
 }
 func (UnimplementedFunnelbaseServer) mustEmbedUnimplementedFunnelbaseServer() {}
 
@@ -109,20 +109,20 @@ func _Funnelbase_QueueRequest_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Funnelbase_InitialiseRateLimit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Funnelbase_AddRateLimit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RateLimit)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(FunnelbaseServer).InitialiseRateLimit(ctx, in)
+		return srv.(FunnelbaseServer).AddRateLimit(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Funnelbase_InitialiseRateLimit_FullMethodName,
+		FullMethod: Funnelbase_AddRateLimit_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(FunnelbaseServer).InitialiseRateLimit(ctx, req.(*RateLimit))
+		return srv.(FunnelbaseServer).AddRateLimit(ctx, req.(*RateLimit))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -139,8 +139,8 @@ var Funnelbase_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Funnelbase_QueueRequest_Handler,
 		},
 		{
-			MethodName: "InitialiseRateLimit",
-			Handler:    _Funnelbase_InitialiseRateLimit_Handler,
+			MethodName: "AddRateLimit",
+			Handler:    _Funnelbase_AddRateLimit_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

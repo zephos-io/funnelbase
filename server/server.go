@@ -8,12 +8,12 @@ import (
 	pb "zephos/funnelbase/api"
 	"zephos/funnelbase/rate_limiter"
 	"zephos/funnelbase/request"
-	"zephos/funnelbase/services/redis"
+	"zephos/funnelbase/services/cache"
 )
 
 type Server struct {
 	pb.UnimplementedFunnelbaseServer
-	Redis       *redis.Redis
+	Cache       *cache.Cache
 	RateLimiter *rate_limiter.RateLimiter
 }
 
@@ -25,7 +25,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (*pb.Respons
 	//	fmt.Println(duration)
 	//}()
 
-	log.Println("RECEIVED", req.Url)
+	//log.Println("RECEIVED", req.Url)
 
 	//go func() {
 	//	select {
@@ -49,7 +49,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (*pb.Respons
 	//}
 
 	if req.CacheLifespan > 0 {
-		cachedResp, err := s.Redis.CheckCache(req)
+		cachedResp, err := s.Cache.CheckCache(req)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -73,17 +73,42 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (*pb.Respons
 		return nil, err
 	}
 
+	if err := s.RateLimiter.CheckForBackoff(req, resp); err != nil {
+		return nil, err
+	}
+
 	if resp.StatusCode == 200 && req.CacheLifespan > 0 {
 		// cache will default to 0ms if no time is provided
 		var cacheLifespan = time.Duration(req.CacheLifespan) * time.Millisecond
 
-		err = s.Redis.CacheResponse(resp, cacheLifespan)
+		err = s.Cache.CacheResponse(resp, cacheLifespan)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	grpcResp, err := resp.ConvertResponseToGRPC()
+	return resp.ConvertResponseToGRPC()
+}
 
-	return grpcResp, err
+func (s *Server) AddRateLimit(ctx context.Context, req *pb.RateLimit) (*pb.RateLimitResponse, error) {
+	if req.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+
+	if req.Period == 0 {
+		return nil, fmt.Errorf("period is required")
+	}
+
+	if req.Limit == 0 {
+		return nil, fmt.Errorf("limit is required")
+	}
+
+	if s.RateLimiter.LimitExists(req.Name) {
+		return &pb.RateLimitResponse{Response: "limit already exists"}, nil
+	}
+
+	l := s.RateLimiter.AddLimit(req.Name, time.Duration(req.Period)*time.Millisecond, req.Limit, int(req.BackoffStatusCode), req.RetryAfterHeader)
+	go l.StartQueueHandler()
+
+	return &pb.RateLimitResponse{Response: "successfully created new limit"}, nil
 }

@@ -27,6 +27,22 @@ func main() {
 	defer conn.Close()
 	client := pb.NewFunnelbaseClient(conn)
 
+	limit := &pb.RateLimit{
+		Name:              "rolling_30s",
+		BackoffStatusCode: 429,
+		RetryAfterHeader:  "Retry-After",
+		Period:            (30 * time.Second).Milliseconds(),
+		Limit:             15,
+	}
+
+	_, err = client.AddRateLimit(context.Background(), limit)
+
+	if err != nil {
+		panic(err)
+	}
+
+	log.Println("added limit")
+
 	for i := 0; i < 1000; i++ {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -42,8 +58,9 @@ func main() {
 			resp, err := client.QueueRequest(ctx, &pb.Request{
 				Url:       fmt.Sprintf("http://localhost:3333/v1/test?index=%d", i+1),
 				Method:    pb.RequestMethod_GET,
-				RateLimit: "spotify_rolling_30s",
+				RateLimit: limit.Name,
 				Priority:  priority,
+				//CacheLifespan: (60 * time.Second).Milliseconds(),
 			})
 			if err != nil {
 				//panic(err)

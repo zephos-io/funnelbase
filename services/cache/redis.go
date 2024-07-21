@@ -1,19 +1,18 @@
-package redis
+package cache
 
 import (
+	"context"
 	"github.com/redis/go-redis/v9"
 )
 
-type Redis struct {
-	client *redis.Client
-}
+var ctx = context.Background()
 
-func InitialiseClient() *Redis {
+func InitialiseClient() *Cache {
 	client := redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
 
-	return &Redis{client}
+	return &Cache{client}
 }

@@ -12,6 +12,7 @@ services:
       - --storage.tsdb.retention.time=180d
       - --web.console.libraries=/usr/share/prometheus/console_libraries
       - --web.console.templates=/usr/share/prometheus/consoles
+      - --enable-feature=native-histograms
     ports:
       - mode: host
         target: 9090
