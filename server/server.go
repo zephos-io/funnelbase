@@ -23,9 +23,11 @@ type Server struct {
 
 // QueueRequest handles gRPC calls to request
 func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (*pb.Response, error) {
+	ctx = context.WithValue(ctx, "retry_count", 0)
+
 	start := time.Now()
 
-	reqLog := logger.With().Time("recv_time", start).Str("url", req.Url).Str("method", req.Method.String()).Str("priority", req.Priority.String()).Int64("cache", req.CacheLifespan).Logger()
+	reqLog := logger.With().Time("recv_time", start).Str("url", req.Url).Str("method", req.Method.String()).Str("priority", req.Priority.String()).Int32("cache", req.CacheLifespan).Logger()
 
 	reqLog.Debug().Msgf("received request")
 
@@ -46,42 +48,66 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (*pb.Respons
 		}
 	}
 
-	// add request to rate limiter
-	err := s.RateLimiter.LimitRequest(ctx, req)
-	if err != nil {
-		return nil, err
-	}
+	var httpErr error
 
-	duration := time.Since(start)
+	for {
+		reqLog = reqLog.With().Int("retry_count", ctx.Value("retry_count").(int)).Logger()
 
-	reqLog.Debug().Msgf("released from rate limiter after %s", duration)
+		if ctx.Value("retry_count").(int) <= int(req.Retries) || int(req.Retries) <= 0 {
+			// add request to rate limiter
+			err := s.RateLimiter.LimitRequest(ctx, req)
+			if err != nil {
+				return nil, err
+			}
 
-	// make the http request
-	resp, err := request.Request(req)
-	if err != nil {
-		return nil, err
-	}
+			duration := time.Since(start)
 
-	// check to see if backoff has been requested by the API
-	if err := s.RateLimiter.CheckForBackoff(req, resp); err != nil {
-		return nil, err
-	}
+			reqLog.Debug().Msgf("released from rate limiter after %s", duration)
 
-	// if valid response and client requested caching, cache the request
-	if resp.StatusCode == 200 && req.CacheLifespan > 0 {
-		// cache will default to 0ms if no time is provided
-		var cacheLifespan = time.Duration(req.CacheLifespan) * time.Millisecond
+			// make the http request
+			resp, err := request.Request(ctx, req)
+			if err != nil {
+				return nil, err
+			}
 
-		err := s.Cache.CacheResponse(resp, cacheLifespan)
-		if err != nil {
-			return nil, err
+			// check to see if backoff has been requested by the API
+			if err := s.RateLimiter.CheckForBackoff(req, resp); err != nil {
+				return nil, err
+			}
+
+			// check for error status code and retry
+			if resp.StatusCode >= 500 {
+				ctx = context.WithValue(ctx, "retry_count", ctx.Value("retry_count").(int)+1)
+
+				httpErr = fmt.Errorf("error code %d recieved", resp.StatusCode)
+
+				if req.Retries <= 0 {
+					return nil, httpErr
+				}
+
+				continue
+			}
+
+			// if valid response and client requested caching, cache the request
+			if resp.StatusCode == 200 && req.CacheLifespan > 0 {
+				// cache will default to 0ms if no time is provided
+				var cacheLifespan = time.Duration(req.CacheLifespan) * time.Millisecond
+
+				err := s.Cache.CacheResponse(resp, cacheLifespan)
+				if err != nil {
+					return nil, err
+				}
+
+				reqLog.Debug().Msgf("added to cache for %s", cacheLifespan)
+			}
+
+			reqLog.Debug().Msg("replying")
+			return resp.ConvertResponseToGRPC()
+		} else {
+			return nil, fmt.Errorf("too many retries (%d/%d): %v", ctx.Value("retry_count").(int)-1, req.Retries, httpErr)
 		}
-
-		reqLog.Debug().Msgf("added to cache for %s", cacheLifespan)
 	}
 
-	reqLog.Debug().Msg("replying")
-	return resp.ConvertResponseToGRPC()
 }
 
 // AddRateLimit handles gRPC calls to add a limit to the rate limiter

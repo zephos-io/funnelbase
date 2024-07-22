@@ -28,8 +28,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func failHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusBadGateway)
+	return
+}
+
 func main() {
 	http.HandleFunc("/v1/test", handler)
+	http.HandleFunc("/v1/fail", failHandler)
 
 	err := http.ListenAndServe(":3333", nil)
 	if errors.Is(err, http.ErrServerClosed) {

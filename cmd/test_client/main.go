@@ -7,7 +7,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
-	"math/rand/v2"
 	"time"
 	pb "zephos/funnelbase/api"
 )
@@ -61,6 +60,8 @@ func main() {
 				Method:    pb.RequestMethod_GET,
 				RateLimit: limit.Name,
 				Priority:  priority,
+				Client:    "testing",
+				Retries:   1,
 				//CacheLifespan: (60 * time.Second).Milliseconds(),
 			})
 			if err != nil {
@@ -73,7 +74,8 @@ func main() {
 
 		}()
 
-		time.Sleep(time.Duration(rand.IntN(3000)) * time.Millisecond)
+		//time.Sleep(time.Duration(rand.IntN(3000)) * time.Millisecond)
+		time.Sleep(60 * time.Second)
 	}
 
 }

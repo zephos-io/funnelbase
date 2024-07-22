@@ -2,6 +2,7 @@ package request
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ type Response struct {
 	Headers    http.Header
 	Request    *http.Request
 	CacheHit   bool
+	RetryCount int
 }
 
 func ValidateRequest(request *pb.Request) error {
@@ -51,13 +53,16 @@ func (resp *Response) ConvertResponseToGRPC() (*pb.Response, error) {
 }
 
 // Request handles the http request
-func Request(req *pb.Request) (*Response, error) {
+func Request(ctx context.Context, req *pb.Request) (*Response, error) {
 	client := &http.Client{}
 
 	u := req.Url
 	method := req.Method.String()
 
-	httpReq, _ := http.NewRequest(method, u, nil)
+	httpReq, err := http.NewRequestWithContext(ctx, method, u, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, header := range req.Headers {
 		httpReq.Header.Add(header.Key, header.Value)

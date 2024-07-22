@@ -34,11 +34,13 @@ message Request {
   RequestPriority priority = 5;
   // time in milliseconds for the response to exist in cache assuming its successful
   // if no cacheLifespan is provided, it will not access any existing cache and it wont set any cache
-  int64 cacheLifespan = 6;
+  int32 cacheLifespan = 6;
   // name of the rate limit the request should be added to
   string rateLimit = 7;
+  // number of tries if the request fails
+  int32 retries = 8;
   // name of the client sending the request
-  string client = 8;
+  string client = 9;
 }
 
 
