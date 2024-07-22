@@ -16,11 +16,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("got /test/api")
 
-	if count%20 == 0 {
-		w.Header().Set("Retry-After", "30")
-		w.WriteHeader(429)
-		return
-	}
+	//if count%20 == 0 {
+	//	w.Header().Set("Retry-After", "30")
+	//	w.WriteHeader(429)
+	//	return
+	//}
 
 	_, err := io.WriteString(w, "OK")
 	if err != nil {

@@ -3,12 +3,16 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 	pb "zephos/funnelbase/api"
 	"zephos/funnelbase/rate_limiter"
 	"zephos/funnelbase/request"
 	"zephos/funnelbase/services/cache"
+	"zephos/funnelbase/util"
+)
+
+var (
+	logger = util.NewLogger().With().Str("component", "server").Logger()
 )
 
 type Server struct {
@@ -17,37 +21,19 @@ type Server struct {
 	RateLimiter *rate_limiter.RateLimiter
 }
 
+// QueueRequest handles gRPC calls to request
 func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (*pb.Response, error) {
 	start := time.Now()
 
-	//defer func() {
-	//	duration := time.Since(start)
-	//	fmt.Println(duration)
-	//}()
+	reqLog := logger.With().Time("recv_time", start).Str("url", req.Url).Str("method", req.Method.String()).Str("priority", req.Priority.String()).Int64("cache", req.CacheLifespan).Logger()
 
-	//log.Println("RECEIVED", req.Url)
+	reqLog.Debug().Msgf("received request")
 
-	//go func() {
-	//	select {
-	//	case <-ctx.Done():
-	//		if ctx.Err() != nil {
-	//			log.Println("context canceled")
-	//		} else {
-	//			fmt.Println("done")
-	//
-	//		}
-	//
-	//		return nil, nil
-	//	}
-	//}()
+	if err := request.ValidateRequest(req); err != nil {
+		return nil, err
+	}
 
-	//time.Sleep(2 * time.Second)
-	//fmt.Println(time.Now(), ctx.Deadline())
-
-	//if req.Timeout > 0 {
-	//	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(req.Timeout)*time.Millisecond)
-	//}
-
+	// if cache lifespan is given, check to see if it exists in cache first
 	if req.CacheLifespan > 0 {
 		cachedResp, err := s.Cache.CheckCache(req)
 		if err != nil {
@@ -55,10 +41,12 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (*pb.Respons
 		}
 
 		if cachedResp != nil {
+			reqLog.Debug().Msgf("replying with cached response")
 			return cachedResp.ConvertResponseToGRPC()
 		}
 	}
 
+	// add request to rate limiter
 	err := s.RateLimiter.LimitRequest(ctx, req)
 	if err != nil {
 		return nil, err
@@ -66,30 +54,37 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (*pb.Respons
 
 	duration := time.Since(start)
 
-	log.Println("released", req.Url, duration)
+	reqLog.Debug().Msgf("released from rate limiter after %s", duration)
 
-	resp, err := request.QueueRequest(req)
+	// make the http request
+	resp, err := request.Request(req)
 	if err != nil {
 		return nil, err
 	}
 
+	// check to see if backoff has been requested by the API
 	if err := s.RateLimiter.CheckForBackoff(req, resp); err != nil {
 		return nil, err
 	}
 
+	// if valid response and client requested caching, cache the request
 	if resp.StatusCode == 200 && req.CacheLifespan > 0 {
 		// cache will default to 0ms if no time is provided
 		var cacheLifespan = time.Duration(req.CacheLifespan) * time.Millisecond
 
-		err = s.Cache.CacheResponse(resp, cacheLifespan)
+		err := s.Cache.CacheResponse(resp, cacheLifespan)
 		if err != nil {
 			return nil, err
 		}
+
+		reqLog.Debug().Msgf("added to cache for %s", cacheLifespan)
 	}
 
+	reqLog.Debug().Msg("replying")
 	return resp.ConvertResponseToGRPC()
 }
 
+// AddRateLimit handles gRPC calls to add a limit to the rate limiter
 func (s *Server) AddRateLimit(ctx context.Context, req *pb.RateLimit) (*pb.RateLimitResponse, error) {
 	if req.Name == "" {
 		return nil, fmt.Errorf("name is required")

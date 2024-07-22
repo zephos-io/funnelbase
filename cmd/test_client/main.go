@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
+	"math/rand/v2"
 	"time"
 	pb "zephos/funnelbase/api"
 )
@@ -31,8 +32,8 @@ func main() {
 		Name:              "rolling_30s",
 		BackoffStatusCode: 429,
 		RetryAfterHeader:  "Retry-After",
-		Period:            (30 * time.Second).Milliseconds(),
-		Limit:             15,
+		Period:            (60 * time.Second).Milliseconds(),
+		Limit:             60,
 	}
 
 	_, err = client.AddRateLimit(context.Background(), limit)
@@ -72,7 +73,7 @@ func main() {
 
 		}()
 
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(time.Duration(rand.IntN(3000)) * time.Millisecond)
 	}
 
 }

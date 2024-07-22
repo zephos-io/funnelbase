@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
@@ -9,7 +10,10 @@ import (
 	"time"
 	pb "zephos/funnelbase/api"
 	"zephos/funnelbase/request"
+	"zephos/funnelbase/util"
 )
+
+var ctx = context.Background()
 
 var (
 	cachedCount = promauto.NewGauge(
@@ -20,6 +24,8 @@ var (
 			Help:      "Number of cached items",
 		},
 	)
+	monitorInterval = 1 * time.Second
+	logger          = util.NewLogger().With().Str("component", "cache").Logger()
 )
 
 type Cache struct {
@@ -29,6 +35,16 @@ type Cache struct {
 type CachedResponse struct {
 	Body       string `redis:"body"`
 	StatusCode int    `redis:"statusCode"`
+}
+
+func New() (*Cache, error) {
+	client, err := InitialiseRedis()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &Cache{client: client}, nil
 }
 
 func (c *Cache) CacheResponse(resp *request.Response, cacheLifespan time.Duration) error {
@@ -55,19 +71,15 @@ func (c *Cache) CheckCache(req *pb.Request) (*CachedResponse, error) {
 		return nil, fmt.Errorf("failed to get cached response %s: %v", req.Url, res.Err())
 	}
 
-	//var cachedResponse CachedResponse
-	//if err := res.Scan(&cachedResponse); err != nil {
-	//	return nil, fmt.Errorf("failed to scan to cached response for %s: %v", req.Url, err)
-	//}
-
 	return &CachedResponse{
 		Body: res.Val(),
 	}, nil
 }
 
 func (c *Cache) Monitor() {
-	fmt.Println("starting cache monitor")
-	ticker := time.NewTicker(time.Second)
+	logger.Info().Msgf("starting prometheus monitor (interval: %s)", monitorInterval.String())
+
+	ticker := time.NewTicker(monitorInterval)
 
 	for range ticker.C {
 		res := c.client.DBSize(ctx)

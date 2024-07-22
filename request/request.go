@@ -24,27 +24,14 @@ func ValidateRequest(request *pb.Request) error {
 		return fmt.Errorf("url is required")
 	}
 
-	_, err := url.ParseRequestURI(request.Url)
-	if err != nil {
+	if _, err := url.ParseRequestURI(request.Url); err != nil {
 		return fmt.Errorf("url is invalid")
 	}
 
 	return nil
 }
 
-func QueueRequest(req *pb.Request) (*Response, error) {
-	if err := ValidateRequest(req); err != nil {
-		return nil, err
-	}
-
-	resp, err := MakeRequest(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
-}
-
+// ConvertResponseToGRPC converts a given pb.Response to a suitable gRPC response to send back to the client
 func (resp *Response) ConvertResponseToGRPC() (*pb.Response, error) {
 	var respHeaders []*pb.Headers
 
@@ -63,7 +50,8 @@ func (resp *Response) ConvertResponseToGRPC() (*pb.Response, error) {
 	}, nil
 }
 
-func MakeRequest(req *pb.Request) (*Response, error) {
+// Request handles the http request
+func Request(req *pb.Request) (*Response, error) {
 	client := &http.Client{}
 
 	u := req.Url

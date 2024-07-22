@@ -1,18 +1,22 @@
 package cache
 
 import (
-	"context"
 	"github.com/redis/go-redis/v9"
 )
 
-var ctx = context.Background()
-
-func InitialiseClient() *Cache {
+// TODO: accept flags/env vars for this connection
+func InitialiseRedis() (*redis.Client, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
 
-	return &Cache{client}
+	res := client.Ping(ctx)
+
+	if res.Err() == nil {
+		logger.Info().Msg("successfully connected to redis")
+	}
+
+	return client, res.Err()
 }

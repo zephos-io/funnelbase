@@ -2,6 +2,9 @@
   <configuration default="false" name="run server" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="funnelbase" />
     <working_directory value="$PROJECT_DIR$" />
+    <envs>
+      <env name="APP_ENV" value="development" />
+    </envs>
     <EXTENSION ID="software.aws.toolkits.jetbrains.core.execution.GoAwsConnectionRunConfigurationExtension">
       <option name="credential" />
       <option name="region" />

@@ -1,4 +1,4 @@
-// CREDIT: https://github.com/vimeo/go-util (except for ClearSpecific)
+// credit: https://github.com/vimeo/go-util (except for ClearSpecific)
 
 package util
 

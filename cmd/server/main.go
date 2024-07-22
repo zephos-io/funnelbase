@@ -1,52 +1,54 @@
 package main
 
 import (
-	"flag"
 	"fmt"
+	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"log"
 	"net"
 	pb "zephos/funnelbase/api"
 	"zephos/funnelbase/rate_limiter"
 	"zephos/funnelbase/server"
 	"zephos/funnelbase/services/cache"
 	"zephos/funnelbase/services/prometheus"
+	"zephos/funnelbase/util"
 )
 
 var (
-	port = flag.Int("port", 50051, "The server port")
+	logger = util.NewLogger().With().Str("component", "main").Logger()
 )
 
 func main() {
-	flag.Parse()
+	logger.Info().Msgf("starting funnelbase for %s environment", viper.GetString("app_env"))
 
-	c := cache.InitialiseClient()
+	c, err := cache.New()
 
-	go c.Monitor()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to create cache")
+	}
 
 	go prometheus.ListenAndServe()
-	//prometheus.Record()
+	go c.Monitor()
 
 	rl := rate_limiter.New("spotify")
-	//rl.AddLimit("rolling_30s", 30*time.Second, 15)
 
 	go rl.Monitor()
 
-	//rl.StartQueueHandlers()
+	// have to get as string as .GetInt returns 0
+	port := viper.GetString("port")
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		logger.Fatal().Err(err).Msg("failed to listen")
 	}
 	s := grpc.NewServer()
 	pb.RegisterFunnelbaseServer(s, &server.Server{Cache: c, RateLimiter: rl})
-	log.Printf("server listening at %v", lis.Addr())
+	logger.Info().Msgf("funnelbase server listening at %v", lis.Addr())
 
-	// Register reflection service on gRPC server.
+	// register reflection service on gRPC server.
 	reflection.Register(s)
 
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+	if err = s.Serve(lis); err != nil {
+		logger.Fatal().Err(err).Msg("failed to serve")
 	}
 }
