@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 	pb "zephos/funnelbase/api"
-	"zephos/funnelbase/request"
-	"zephos/funnelbase/util"
+	"zephos/funnelbase/pkg/request"
+	"zephos/funnelbase/pkg/util"
 )
 
 var (

@@ -3,7 +3,7 @@ package prometheus
 import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
-	"zephos/funnelbase/util"
+	"zephos/funnelbase/pkg/util"
 )
 
 var (

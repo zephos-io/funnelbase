@@ -7,11 +7,11 @@ import (
 	"google.golang.org/grpc/reflection"
 	"net"
 	pb "zephos/funnelbase/api"
-	"zephos/funnelbase/rate_limiter"
-	"zephos/funnelbase/server"
-	"zephos/funnelbase/services/cache"
-	"zephos/funnelbase/services/prometheus"
-	"zephos/funnelbase/util"
+	"zephos/funnelbase/pkg/rate_limiter"
+	"zephos/funnelbase/pkg/server"
+	"zephos/funnelbase/pkg/services/cache"
+	"zephos/funnelbase/pkg/services/prometheus"
+	"zephos/funnelbase/pkg/util"
 )
 
 var (

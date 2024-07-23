@@ -3,7 +3,7 @@ package main
 import (
 	"container/heap"
 	"fmt"
-	"zephos/funnelbase/util"
+	"zephos/funnelbase/pkg/util"
 )
 
 // An Item is something we manage in a priority queue.

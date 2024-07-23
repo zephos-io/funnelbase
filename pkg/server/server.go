@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 	pb "zephos/funnelbase/api"
-	"zephos/funnelbase/rate_limiter"
-	"zephos/funnelbase/request"
-	"zephos/funnelbase/services/cache"
-	"zephos/funnelbase/util"
+	"zephos/funnelbase/pkg/rate_limiter"
+	"zephos/funnelbase/pkg/request"
+	"zephos/funnelbase/pkg/services/cache"
+	"zephos/funnelbase/pkg/util"
 )
 
 var (

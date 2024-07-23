@@ -9,8 +9,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"time"
 	pb "zephos/funnelbase/api"
-	"zephos/funnelbase/request"
-	"zephos/funnelbase/util"
+	"zephos/funnelbase/pkg/request"
+	"zephos/funnelbase/pkg/util"
 )
 
 var ctx = context.Background()
