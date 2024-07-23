@@ -49,21 +49,8 @@ through lowercased arguments to go (as shown below). The config variables are:
 - `REDIS_PASSWORD` - Password for the Redis server
 - `REDIS_DB`: Integer of the Redis database (defaults to 0)
 
-## Go
-May need to generate gRPC go bindings using the following command
-```shell
-make generate-grpc
-```
+If project is loaded up through any JetBrains IDE's, there will be Run Configurations available for useful commands.
 
-Start the Funnelbase gRPC server using the following command
-```shell
-go run ./cmd/server \
--app_env=development \
--port=50051 \
--redis_addr=localhost:6379 
--redis_password= \
--redis_db=0
-```
 ## Docker
 
 Easiest way to run Funnelbase is to use the `docker-compose.yml` file which spins up Funnelbase as well as Redis.
@@ -80,4 +67,23 @@ docker build -t zephos-io/funnelbase . \
 --env REDIS_DB=0 \
 --name funnelbase \
 zephos-io/funnelbase
+```
+
+## Go
+
+May need to generate gRPC go bindings using the following command
+
+```shell
+make generate-grpc
+```
+
+Start the Funnelbase gRPC server using the following command
+
+```shell
+go run ./cmd/server \
+-app_env=development \
+-port=50051 \
+-redis_addr=localhost:6379 
+-redis_password= \
+-redis_db=0
 ```
