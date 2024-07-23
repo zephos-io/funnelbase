@@ -12,6 +12,9 @@ var (
 	fs = flag.NewFlagSet("funnelbase", flag.ExitOnError)
 	_  = fs.Int("port", 50051, "The server port")
 	_  = fs.String("app_env", "development", "The app environment")
+	_  = fs.String("redis_addr", "localhost:6379", "Redis server address")
+	_  = fs.String("redis_password", "", "Redis server password")
+	_  = fs.Int("redis_db", 0, "Redis db number")
 )
 
 func init() {

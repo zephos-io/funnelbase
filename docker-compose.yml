@@ -5,8 +5,29 @@ services:
     container_name: 'funnelbase_redis'
     image: redis:7.2.5-alpine3.20
     restart: always
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     #    command: redis-server /usr/local/etc/redis/redis.conf
     ports:
       - '6379:6379'
-#    volumes:
-#      - ./redis.conf:/usr/local/etc/redis/redis.conf
+  #    volumes:
+  #      - ./redis.conf:/usr/local/etc/redis/redis.conf
+
+  funnelbase:
+    container_name: 'funnelbase_server'
+    image: zephos-io/funnelbase:latest
+    restart: always
+    build:
+      dockerfile: Dockerfile
+    environment:
+      PORT: 50051
+      APP_ENV: development
+      REDIS_ADDR: funnelbase_redis:6379
+      REDIS_PASSWORD: ''
+      REDIS_DB: 0
+    depends_on:
+      redis:
+        condition: service_healthy
