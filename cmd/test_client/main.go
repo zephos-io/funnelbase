@@ -75,7 +75,7 @@ func main() {
 		}()
 
 		//time.Sleep(time.Duration(rand.IntN(3000)) * time.Millisecond)
-		time.Sleep(60 * time.Second)
+		time.Sleep(2 * time.Second)
 	}
 
 }

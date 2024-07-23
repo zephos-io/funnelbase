@@ -1,6 +1,6 @@
 # Funnelbase
 
-High performance microservice for rate limiting and caching of outbound requests
+High performance microservice for rate limiting and caching of outbound requests written in Go
 
 ## Context
 
@@ -10,7 +10,10 @@ are vague and don't return any meaningful data about number of requests used/rem
 warning when you need to back off. This makes it complicated for microservices to control the flow of requests out to
 Spotify's API.
 
-Below is a diagram describing the issue and how Funnelbase fixes this.
+**It is worth noting that development of Funnelbase is currently geared towards communicating with Spotify's API and
+design choices will reflect this.**
+
+Below is a diagram describing the issue and how Funnelbase fixes it.
 ![Diagram describing the issue and how Funnelbase fixes this](./assets/context-dark.png)
 
 Scenario 1 is without Funnelbase where X number of services send requests off to an external API whenever they like.
@@ -38,16 +41,25 @@ through before lower priority ones.
 
 Once these sequences are completed, the API response data is sent back to the client through gRPC.
 
+# Features
+
+* Customisable rate limiting for each API
+* Caching of responses to avoid request duplication
+* Cancellation of requests if it exceeds the requests deadline
+* Ability to retry if the request fails
+* Monitor requests for backoff requests from APIs and respond accordingly
+* Exposes metrics for Prometheus about rate limiter and caching statistics
+
 # Usage
 
 Funnelbase provides a list of config settings which cant either be passed through uppercased environment variables or
 through lowercased arguments to go (as shown below). The config variables are:
 
-- `PORT` - Port the Funnelbase gRPC server should run on
-- `APP_ENV` - Environment of the app (development, test, production). This determines the logging format
-- `REDIS_ADDR` - Address of the Redis server (localhost:6379 for development)
-- `REDIS_PASSWORD` - Password for the Redis server
-- `REDIS_DB`: Integer of the Redis database (defaults to 0)
+* `PORT` - Port the Funnelbase gRPC server should run on
+* `APP_ENV` - Environment of the app (development, test, production). This determines the logging format
+* `REDIS_ADDR` - Address of the Redis server (localhost:6379 for development)
+* `REDIS_PASSWORD` - Password for the Redis server
+* `REDIS_DB`: Integer of the Redis database (defaults to 0)
 
 If project is loaded up through any JetBrains IDE's, there will be Run Configurations available for useful commands.
 
@@ -87,3 +99,13 @@ go run ./cmd/server \
 -redis_password= \
 -redis_db=0
 ```
+
+## Development
+
+Other than `cmd/server`, there are multiple other packages in `cmd` that have assisted in development
+
+* `cmd/test_api_server` - Fake API server with the ability to respond successfully, throw an error or tell the client to
+  backoff
+* `cmd/test_client` - Fake client that sends calls to Funnelbase. Act's as a service in the diagram above
+
+Both of these are often needed to be running simultaneously for smooth development experience.
