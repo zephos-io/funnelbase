@@ -35,13 +35,13 @@ func main() {
 		Limit:             60,
 	}
 
-	_, err = client.AddRateLimit(context.Background(), limit)
+	resp, err := client.AddRateLimit(context.Background(), limit)
 
 	if err != nil {
 		panic(err)
 	}
 
-	log.Println("added limit")
+	log.Println(resp, err)
 
 	for i := 0; i < 1000; i++ {
 		go func() {

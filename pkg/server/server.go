@@ -8,6 +8,7 @@ import (
 	"zephos/funnelbase/pkg/rate_limiter"
 	"zephos/funnelbase/pkg/request"
 	"zephos/funnelbase/pkg/services/cache"
+	"zephos/funnelbase/pkg/services/prometheus"
 	"zephos/funnelbase/pkg/util"
 )
 
@@ -22,8 +23,18 @@ type Server struct {
 }
 
 // QueueRequest handles gRPC calls to request
-func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (*pb.Response, error) {
+func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Response, err error) {
 	ctx = context.WithValue(ctx, "retry_count", 0)
+
+	prometheus.ReqsReceived.WithLabelValues(s.RateLimiter.Name).Inc()
+
+	defer func() {
+		if err != nil {
+			prometheus.ErrorResponses.WithLabelValues(s.RateLimiter.Name).Inc()
+		} else {
+			prometheus.SuccessResponses.WithLabelValues(s.RateLimiter.Name).Inc()
+		}
+	}()
 
 	start := time.Now()
 
@@ -44,6 +55,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (*pb.Respons
 
 		if cachedResp != nil {
 			reqLog.Debug().Msgf("replying with cached response")
+			prometheus.CachedResponses.WithLabelValues(s.RateLimiter.Name).Inc()
 			return cachedResp.ConvertResponseToGRPC()
 		}
 	}
