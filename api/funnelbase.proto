@@ -29,18 +29,19 @@ message Request {
 
   string url = 1;
   RequestMethod method = 2;
-  string authorization = 3;
-  repeated Headers headers = 4;
-  RequestPriority priority = 5;
+  string body = 3;
+  string authorization = 4;
+  repeated Headers headers = 5;
+  RequestPriority priority = 6;
   // time in milliseconds for the response to exist in cache assuming its successful
   // if no cacheLifespan is provided, it will not access any existing cache and it wont set any cache
-  int32 cacheLifespan = 6;
+  int32 cacheLifespan = 7;
   // name of the rate limit the request should be added to
-  string rateLimit = 7;
+  string rateLimit = 8;
   // number of tries if the request fails
-  int32 retries = 8;
+  int32 retries = 9;
   // name of the client sending the request
-  string client = 9;
+  string client = 10;
 }
 
 
