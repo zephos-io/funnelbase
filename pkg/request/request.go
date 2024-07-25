@@ -45,10 +45,10 @@ func (resp *Response) ConvertResponseToGRPC() (*pb.Response, error) {
 	}
 
 	return &pb.Response{
-		//StatusCode: int32(resp.StatusCode),
-		Body: resp.Body,
-		//Headers:    respHeaders,
-		CacheHit: resp.CacheHit,
+		StatusCode: int32(resp.StatusCode),
+		Body:       resp.Body,
+		Headers:    respHeaders,
+		CacheHit:   resp.CacheHit,
 	}, nil
 }
 
@@ -59,7 +59,13 @@ func Request(ctx context.Context, req *pb.Request) (*Response, error) {
 	u := req.Url
 	method := req.Method.String()
 
-	httpReq, err := http.NewRequestWithContext(ctx, method, u, nil)
+	var reqBody io.Reader = nil
+
+	if req.Body != "" {
+		reqBody = bytes.NewBufferString(req.Body)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, method, u, reqBody)
 	if err != nil {
 		return nil, err
 	}

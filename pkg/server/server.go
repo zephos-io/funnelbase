@@ -47,7 +47,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 	}
 
 	// if cache lifespan is given, check to see if it exists in cache first
-	if req.CacheLifespan > 0 {
+	if req.CacheLifespan > 0 && req.Method == pb.RequestMethod_GET {
 		cachedResp, err := s.Cache.CheckCache(req)
 		if err != nil {
 			fmt.Println(err)
@@ -101,7 +101,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 			}
 
 			// if valid response and client requested caching, cache the request
-			if resp.StatusCode == 200 && req.CacheLifespan > 0 {
+			if resp.StatusCode == 200 && req.CacheLifespan > 0 && req.Method == pb.RequestMethod_GET {
 				// cache will default to 0ms if no time is provided
 				var cacheLifespan = time.Duration(req.CacheLifespan) * time.Millisecond
 
