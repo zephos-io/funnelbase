@@ -3,71 +3,22 @@ package rate_limiter
 import (
 	"context"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"strconv"
 	"time"
 	pb "zephos/funnelbase/api"
 	"zephos/funnelbase/pkg/request"
+	"zephos/funnelbase/pkg/services/prometheus"
 	"zephos/funnelbase/pkg/util"
 )
 
 var (
-	reqsAllowed = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "funnelbase",
-			Subsystem: "rate_limiter",
-			Name:      "reqs_allowed_total",
-			Help:      "Total number of requests allowed through the rate limiter",
-		}, []string{"rate_limiter_name", "limit_name", "queue_priority", "client"},
-	)
-
-	reqsWaiting = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "funnelbase",
-			Subsystem: "rate_limiter",
-			Name:      "reqs_waiting",
-			Help:      "Number of requests waiting to be allowed through the rate limiter",
-		}, []string{"rate_limiter_name", "limit_name", "queue_priority"},
-	)
-
-	reqsWaitTime = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Namespace: "funnelbase",
-			Subsystem: "rate_limiter",
-			Name:      "reqs_wait_time_ms",
-			Help:      "Time (in milliseconds) requests are spent waiting to be allowed through the rate limiter",
-			//NativeHistogramBucketFactor: 1.1,
-			Buckets: []float64{0, 10, 25, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 15000, 30000, 45000, 60000, 120000},
-			//Buckets: prometheus.ExponentialBucketsRange(0.0, 60000.0, 10),
-		}, []string{"rate_limiter_name", "limit_name", "queue_priority", "client"},
-	)
-
-	reqsCancelled = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "funnelbase",
-			Subsystem: "rate_limiter",
-			Name:      "reqs_cancelled_total",
-			Help:      "Total number of requests cancelled while in the rate limiter",
-		}, []string{"rate_limiter_name", "limit_name", "queue_priority", "client"},
-	)
-
-	backoffs = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "funnelbase",
-			Subsystem: "rate_limiter",
-			Name:      "backoff_total",
-			Help:      "Total number of backoff's requested by APIs",
-		}, []string{"rate_limiter_name", "limit_name"},
-	)
-
 	monitorInterval = 1 * time.Second
 
 	logger = util.NewLogger().With().Str("component", "rate_limiter").Logger()
 )
 
 type RateLimiter struct {
-	name   string
+	Name   string
 	limits []*limit
 }
 
@@ -103,7 +54,7 @@ type queuedRequest struct {
 func New(name string) *RateLimiter {
 	logger.Info().Msgf("creating rate limiter: %s", name)
 	return &RateLimiter{
-		name: name,
+		Name: name,
 	}
 }
 
@@ -138,7 +89,7 @@ func (rl *RateLimiter) AddLimit(name string, interval time.Duration, requestLimi
 	limit.rules = append(limit.rules, rule)
 	rl.limits = append(rl.limits, limit)
 
-	logger.Info().Msgf("added rate limit %q to %q", name, rl.name)
+	logger.Info().Msgf("added rate limit %q to %q", name, rl.Name)
 
 	return limit
 }
@@ -169,7 +120,7 @@ func (rl *RateLimiter) Monitor() {
 				// number of requests waiting in priority queue
 				rw := queues[int(p)]
 
-				labeledReqsWaiting := reqsWaiting.WithLabelValues(l.rateLimiter.name, l.name, n)
+				labeledReqsWaiting := prometheus.ReqsWaiting.WithLabelValues(l.rateLimiter.Name, l.name, n)
 				labeledReqsWaiting.Set(float64(rw))
 			}
 		}
@@ -190,8 +141,8 @@ func (l *limit) StartQueueHandler() {
 				if r != nil {
 					qr := r.(*queuedRequest)
 
-					labeledReqsAllowed := reqsAllowed.WithLabelValues(l.rateLimiter.name, l.name, qr.request.Priority.Enum().String(), qr.request.Client)
-					labeledReqsWaitTime := reqsWaitTime.WithLabelValues(l.rateLimiter.name, l.name, qr.request.Priority.Enum().String(), qr.request.Client)
+					labeledReqsAllowed := prometheus.ReqsAllowed.WithLabelValues(l.rateLimiter.Name, l.name, qr.request.Priority.Enum().String(), qr.request.Client)
+					labeledReqsWaitTime := prometheus.ReqsWaitTime.WithLabelValues(l.rateLimiter.Name, l.name, qr.request.Priority.Enum().String(), qr.request.Client)
 
 					allowedNextReq := l.lastRequest.Add(timeBetweenReqs)
 
@@ -261,7 +212,7 @@ func (rl *RateLimiter) LimitRequest(ctx context.Context, req *pb.Request) error 
 
 		rlr = nil // stop memory leak
 
-		reqsCancelled.WithLabelValues(rl.name, matchingLimit.name, req.Priority.Enum().String(), req.Client).Inc()
+		prometheus.ReqsCancelled.WithLabelValues(rl.Name, matchingLimit.name, req.Priority.Enum().String(), req.Client).Inc()
 
 		return ctx.Err()
 	case _ = <-rlr.release:
@@ -284,7 +235,7 @@ func (rl *RateLimiter) CheckForBackoff(req *pb.Request, resp *request.Response) 
 		if backoff != "" {
 			logger.Info().Msgf("backoff recieved for %q limit (%s: %s)", matchingLimit.name, matchingLimit.retryAfterHeader, backoff)
 
-			backoffs.WithLabelValues(rl.name, matchingLimit.name).Inc()
+			prometheus.Backoffs.WithLabelValues(rl.Name, matchingLimit.name).Inc()
 			// headers are always strings so convert to number
 			backoffSeconds, err := strconv.Atoi(backoff)
 			if err != nil {

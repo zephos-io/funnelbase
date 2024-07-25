@@ -4,26 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/redis/go-redis/v9"
 	"time"
 	pb "zephos/funnelbase/api"
 	"zephos/funnelbase/pkg/request"
+	"zephos/funnelbase/pkg/services/prometheus"
 	"zephos/funnelbase/pkg/util"
 )
 
 var ctx = context.Background()
 
 var (
-	cachedCount = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "funnelbase",
-			Subsystem: "cache",
-			Name:      "cached_count",
-			Help:      "Number of cached items",
-		},
-	)
 	monitorInterval = 1 * time.Second
 	logger          = util.NewLogger().With().Str("component", "cache").Logger()
 )
@@ -88,7 +79,7 @@ func (c *Cache) Monitor() {
 			fmt.Println("error")
 		}
 
-		cachedCount.Set(float64(res.Val()))
+		prometheus.CachedCount.Set(float64(res.Val()))
 	}
 }
 
