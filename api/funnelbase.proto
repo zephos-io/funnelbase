@@ -36,12 +36,23 @@ message Request {
   // time in milliseconds for the response to exist in cache assuming its successful
   // if no cacheLifespan is provided, it will not access any existing cache and it wont set any cache
   int32 cacheLifespan = 7;
+  // url for the single version of a batch request
+  // ex. if the url of the request was https://api.spotify.com/v1/albums?ids=a,b,c (this fetches multiple albums),
+  // the batchUrl should be the url that only fetches 1 album, aka 'https://api.spotify.com/v1/albums/{1}'
+  string batchUrl = 8;
+  // json traversal to get the unique id that identifiers a single object from a batch
+  // using the example above from the Spotify albums API, batchIdentifier should be 'albums'
+  string batchArrayId = 9;
+  // 'id'
+  string batchItemId = 10;
+  // param in the url that identifies the batch
+  string batchParamId = 11;
   // name of the rate limit the request should be added to
-  string rateLimit = 8;
+  string rateLimit = 12;
   // number of tries if the request fails
-  int32 retries = 9;
+  int32 retries = 13;
   // name of the client sending the request
-  string client = 10;
+  string client = 14;
 }
 
 
