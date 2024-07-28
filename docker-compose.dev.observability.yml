@@ -23,6 +23,7 @@ services:
   #    network_mode: host
   #    network_mode: host
 
+  # defaults to user/pass of admin:admin
   grafana:
     image: grafana/grafana:10.1.9
     depends_on:

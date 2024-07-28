@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 	pb "zephos/funnelbase/api"
+	"zephos/funnelbase/pkg/services/prometheus"
 )
 
 type Response struct {
@@ -65,6 +67,7 @@ func Request(ctx context.Context, req *pb.Request) (*Response, error) {
 		reqBody = bytes.NewBufferString(req.Body)
 	}
 
+	// use the existing context as that holds the deadline info
 	httpReq, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
 		return nil, err
@@ -78,10 +81,13 @@ func Request(ctx context.Context, req *pb.Request) (*Response, error) {
 		httpReq.Header.Add("Authorization", req.Authorization)
 	}
 
+	startReqTime := time.Now()
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
+
+	prometheus.OutboundRequests.Observe(float64(time.Since(startReqTime).Milliseconds()))
 
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
