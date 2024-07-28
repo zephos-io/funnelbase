@@ -11,6 +11,10 @@ scrape_configs:
     static_configs:
       - targets: [ 'prometheus:9090' ]
 
+  - job_name: 'redis_exporter'
+    static_configs:
+      - targets: [ 'redis_exporter:9121' ]
+
   - job_name: 'funnelbase'
     static_configs:
       ## ip addr show eth0

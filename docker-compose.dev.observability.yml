@@ -35,6 +35,12 @@ services:
         target: 3000
         published: 3000
 
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    command: --redis.addr=funnelbase_redis:6379
+    ports:
+      - '9121:9121'
+
 volumes:
   prometheus_data: { }
   grafana_data: { }
