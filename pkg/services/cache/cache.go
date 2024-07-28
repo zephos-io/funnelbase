@@ -11,7 +11,6 @@ import (
 	"time"
 	pb "zephos/funnelbase/api"
 	"zephos/funnelbase/pkg/request"
-	"zephos/funnelbase/pkg/services/prometheus"
 	"zephos/funnelbase/pkg/util"
 )
 
@@ -140,22 +139,6 @@ func (c *Cache) BatchGetCache(req *pb.Request, batchCachedItems map[string]*Batc
 	}
 
 	return batchReqItems
-}
-
-func (c *Cache) Monitor() {
-	logger.Info().Msgf("starting prometheus monitor (interval: %s)", monitorInterval.String())
-
-	ticker := time.NewTicker(monitorInterval)
-
-	for range ticker.C {
-		res := c.client.DBSize(ctx)
-
-		if res.Err() != nil {
-			fmt.Println("error")
-		}
-
-		prometheus.CachedCount.Set(float64(res.Val()))
-	}
 }
 
 func (cr *CachedResponse) ConvertResponseToGRPC() (*pb.Response, error) {

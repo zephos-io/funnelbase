@@ -2,7 +2,7 @@
 
 High performance microservice for rate limiting and caching of outbound requests written in Go
 
-## Context
+# Context
 
 Development of Funnelbase came about due to the need for [Waveous](https://waveous.com/) to limit and optimise requests
 going to Spotify as the number of distributed services that leaned on Spotify's API increased. Spotify API's rate limits
@@ -24,7 +24,7 @@ This causes 2 issues:
 2. If some of these microservices make the same requests within a period of time that no changes are expected to have
    occurred on the external API, how can they avoid duplication of these requests?
 
-## Goal
+# Goal
 
 Scenario 2 displays the expected flow of data. X number of services communicate with Funnelbase through gRPC. These gRPC
 calls contain information about the API request they want to make. As part of this call, a cache lifespan can be
@@ -49,7 +49,7 @@ Once these sequences are completed, the API response data is sent back to the cl
 * Cancellation of requests if it exceeds the requests deadline
 * Ability to retry if the request fails
 * Monitor requests for backoff requests from APIs and respond accordingly
-* Exposes metrics for Prometheus about rate limiter and caching statistics
+* Exposes metrics for Prometheus
 
 ## Batch requests
 

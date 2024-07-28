@@ -28,7 +28,6 @@ func main() {
 	}
 
 	go prometheus.ListenAndServe()
-	go c.Monitor()
 
 	rl := rate_limiter.New("spotify")
 
