@@ -102,18 +102,6 @@ var (
 	)
 )
 
-// cache metrics
-var (
-	CachedCount = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "funnelbase",
-			Subsystem: "cache",
-			Name:      "cached_count",
-			Help:      "Number of cached items",
-		},
-	)
-)
-
 // outbound api request metrics
 var (
 	OutboundRequests = promauto.NewSummary(
