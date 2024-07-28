@@ -2,7 +2,10 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 	pb "zephos/funnelbase/api"
 	"zephos/funnelbase/pkg/rate_limiter"
@@ -28,35 +31,81 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 
 	prometheus.ReqsReceived.WithLabelValues(s.RateLimiter.Name).Inc()
 
-	defer func() {
-		if err != nil {
-			prometheus.ErrorResponses.WithLabelValues(s.RateLimiter.Name).Inc()
-		} else {
-			prometheus.SuccessResponses.WithLabelValues(s.RateLimiter.Name).Inc()
-		}
-	}()
-
 	start := time.Now()
 
 	reqLog := logger.With().Time("recv_time", start).Str("url", req.Url).Str("method", req.Method.String()).Str("priority", req.Priority.String()).Int32("cache", req.CacheLifespan).Logger()
 
 	reqLog.Debug().Msgf("received request")
 
+	defer func() {
+		if err != nil {
+			prometheus.ErrorResponses.WithLabelValues(s.RateLimiter.Name).Inc()
+		} else {
+			prometheus.SuccessResponses.WithLabelValues(s.RateLimiter.Name).Inc()
+		}
+
+		reqLog.Debug().Msgf("replying after %s", time.Since(start))
+	}()
+
 	if err := request.ValidateRequest(req); err != nil {
 		return nil, err
 	}
 
-	// if cache lifespan is given, check to see if it exists in cache first
-	if req.CacheLifespan > 0 && req.Method == pb.RequestMethod_GET {
-		cachedResp, err := s.Cache.CheckCache(req)
+	// if cache lifespan is given, check to see if it exists in cache first (for non batch requests)
+	if req.CacheLifespan > 0 && req.Method == pb.RequestMethod_GET && req.BatchItemUrl == "" {
+		cachedResp, err := s.Cache.GetCachedResponse(req)
 		if err != nil {
-			fmt.Println(err)
+			reqLog.Warn().Err(err).Msg("failed to get cache of request")
 		}
 
 		if cachedResp != nil {
 			reqLog.Debug().Msgf("replying with cached response")
 			prometheus.CachedResponses.WithLabelValues(s.RateLimiter.Name).Inc()
 			return cachedResp.ConvertResponseToGRPC()
+		}
+
+		// will continue if no cache exists
+	}
+
+	// if cache lifespan is given, check to see if any of the batch requested items exist in cache
+	batchCachedItems := make(map[string]*cache.BatchItem)
+	if req.CacheLifespan > 0 && req.BatchItemUrl != "" {
+		batchReqItems := s.Cache.BatchGetCache(req, batchCachedItems)
+
+		reqLog.Debug().Msgf("improved batch request from %d items to %d", len(batchCachedItems)+len(batchReqItems), len(batchReqItems))
+
+		// if all items from the batch can be found in the cache
+		if len(batchReqItems) == 0 {
+			batchCachedResponse := make(map[string][]interface {
+			})
+
+			for _, cachedItem := range batchCachedItems {
+				batchCachedResponse[req.BatchArrayId] = append(batchCachedResponse[req.BatchArrayId], cachedItem.CachedBody)
+			}
+
+			batchResponseStr, err := json.Marshal(batchCachedResponse)
+			if err != nil {
+				logger.Warn().Err(err).Msg("failed to marshall batch cached response")
+			} else {
+				batchResponse := &cache.CachedResponse{
+					Url:  req.Url,
+					Body: string(batchResponseStr),
+				}
+
+				return batchResponse.ConvertResponseToGRPC()
+			}
+		} else {
+			// rebuild the batch url params to exclude the items that exist in cache
+
+			// already been validated at this point
+			batchUrl, _ := url.Parse(req.Url)
+
+			values := batchUrl.Query()
+			values.Set(req.BatchParamId, strings.Join(batchReqItems, ","))
+
+			batchUrl.RawQuery = values.Encode()
+
+			req.Url = batchUrl.String()
 		}
 	}
 
@@ -100,26 +149,96 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 				continue
 			}
 
-			// if valid response and client requested caching, cache the request
-			if resp.StatusCode == 200 && req.CacheLifespan > 0 && req.Method == pb.RequestMethod_GET {
-				// cache will default to 0ms if no time is provided
+			// if valid response, attempt to cache the response
+			if resp.StatusCode == 200 && req.Method == pb.RequestMethod_GET {
+				// defaults to 0 if not provided
 				var cacheLifespan = time.Duration(req.CacheLifespan) * time.Millisecond
 
-				err := s.Cache.CacheResponse(resp, cacheLifespan)
-				if err != nil {
-					return nil, err
-				}
+				// caching for batch request
+				if req.BatchItemUrl != "" {
+					var batchJsonMap map[string][]map[string]interface {
+					}
 
-				reqLog.Debug().Msgf("added to cache for %s", cacheLifespan)
+					// unmarshall response body out to jsonMap
+					err := json.Unmarshal([]byte(resp.Body), &batchJsonMap)
+					if err != nil {
+						reqLog.Warn().Err(err).Msg("failed to unmarshall batch response body")
+						return resp.ConvertResponseToGRPC()
+					}
+
+					batchJsonItemsArray, ok := batchJsonMap[req.BatchArrayId]
+					if !ok {
+						reqLog.Warn().Msgf("%q doesnt exist in batch", req.BatchArrayId)
+						return nil, fmt.Errorf("%q doesnt exist in batch", req.BatchArrayId)
+					}
+
+					// cache the batch items
+					for _, jsonItem := range batchJsonItemsArray {
+						jsonItemId, ok := jsonItem[req.BatchItemId]
+
+						if ok {
+							batchItemUrl := strings.ReplaceAll(req.BatchItemUrl, "{batchItemId}", jsonItemId.(string))
+
+							itemStr, err := json.Marshal(jsonItem)
+
+							if err != nil {
+								reqLog.Warn().Err(err).Msg("failed to convert item json back to string")
+								continue
+							}
+
+							err = s.Cache.CacheResponse(&cache.CachedResponse{
+								Url:        batchItemUrl,
+								Body:       string(itemStr),
+								StatusCode: resp.StatusCode,
+							}, cacheLifespan)
+
+							if err != nil {
+								reqLog.Warn().Err(err).Msg("failed to cache batch item response")
+								continue
+							}
+
+						} else {
+							reqLog.Warn().Msgf("%q doesnt exist in batch array", req.BatchItemId)
+						}
+					}
+
+					// merge the requested batch items with the cached items
+					for _, cachedItem := range batchCachedItems {
+						batchJsonItemsArray = append(batchJsonItemsArray, cachedItem.CachedBody.(map[string]interface{}))
+					}
+
+					batchJsonMap[req.BatchArrayId] = batchJsonItemsArray
+
+					batchResponseStr, err := json.Marshal(batchJsonMap)
+					if err != nil {
+						reqLog.Warn().Err(err).Msg("failed to unmarshall merged batch cached body")
+						return nil, err
+					} else {
+						resp.Body = string(batchResponseStr)
+
+						return resp.ConvertResponseToGRPC()
+					}
+				} else {
+					// caching for non batch request
+					err := s.Cache.CacheResponse(&cache.CachedResponse{
+						Url:        resp.Request.URL.String(),
+						Body:       resp.Body,
+						StatusCode: resp.StatusCode,
+					}, cacheLifespan)
+
+					if err != nil {
+						reqLog.Warn().Err(err).Msg("failed to cache response")
+					}
+
+					//reqLog.Debug().Msgf("added to cache for %s", cacheLifespan)
+				}
 			}
 
-			reqLog.Debug().Msg("replying")
 			return resp.ConvertResponseToGRPC()
 		} else {
 			return nil, fmt.Errorf("too many retries (%d/%d): %v", ctx.Value("retry_count").(int)-1, req.Retries, httpErr)
 		}
 	}
-
 }
 
 // AddRateLimit handles gRPC calls to add a limit to the rate limiter

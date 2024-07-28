@@ -33,15 +33,55 @@ message Request {
   string authorization = 4;
   repeated Headers headers = 5;
   RequestPriority priority = 6;
+
   // time in milliseconds for the response to exist in cache assuming its successful
-  // if no cacheLifespan is provided, it will not access any existing cache and it wont set any cache
+  // if no cacheLifespan is provided, it will not access any existing cache however it will update any existing cache
   int32 cacheLifespan = 7;
+
+  // url for the single version of a batch request
+  // ex. if the url of the request was https://api.spotify.com/v1/albums?ids=a,b,c (this fetches multiple albums),
+  // the batchItemUrl should be the url that only fetches 1 album, ex. 'https://api.spotify.com/v1/albums/{batchItemId}'
+  string batchItemUrl = 8;
+
+  // following the Spotify albums API spec, the batchArrayId identifies where the array starts in the JSON response from spotify
+  // ex. response
+  // {
+  //    "albums": [
+  //      ...
+  //    ]
+  // }
+  //
+  // for the above example, the batchArrayId would be 'albums'
+  string batchArrayId = 9;
+
+  // following the Spotify albums API spec, the batchItemId identifies which field inside the objects inside the batchArrayId is the id
+  // ex. response
+  // {
+  //    "albums": [
+  //      {
+  //        "album_type": "album",
+  //        "id": "abc"
+  //      },
+  //      ...
+  //    ]
+  // }
+  //
+  // for the above example, the batchItemId would be 'id'
+  string batchItemId = 10;
+
+  // URL param inside the batch request URL that identifies the list of items
+  // for the Spotify album API, the batch request url is https://api.spotify.com/v1/albums?ids=a,b,c
+  // for the above example, the batchParamId would be 'ids'
+  string batchParamId = 11;
+
   // name of the rate limit the request should be added to
-  string rateLimit = 8;
+  string rateLimit = 12;
+
   // number of tries if the request fails
-  int32 retries = 9;
+  int32 retries = 13;
+
   // name of the client sending the request
-  string client = 10;
+  string client = 14;
 }
 
 

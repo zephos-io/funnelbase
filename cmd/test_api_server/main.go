@@ -7,12 +7,15 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 var count = 0
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	count++
+
+	time.Sleep(100 * time.Millisecond)
 
 	log.Println("got /test/api")
 

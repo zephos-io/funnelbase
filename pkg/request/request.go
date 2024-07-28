@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 	pb "zephos/funnelbase/api"
+	"zephos/funnelbase/pkg/services/prometheus"
 )
 
 type Response struct {
@@ -26,7 +28,7 @@ func ValidateRequest(request *pb.Request) error {
 		return fmt.Errorf("url is required")
 	}
 
-	if _, err := url.ParseRequestURI(request.Url); err != nil {
+	if _, err := url.Parse(request.Url); err != nil {
 		return fmt.Errorf("url is invalid")
 	}
 
@@ -56,7 +58,7 @@ func (resp *Response) ConvertResponseToGRPC() (*pb.Response, error) {
 func Request(ctx context.Context, req *pb.Request) (*Response, error) {
 	client := &http.Client{}
 
-	u := req.Url
+	url := req.Url
 	method := req.Method.String()
 
 	var reqBody io.Reader = nil
@@ -65,7 +67,8 @@ func Request(ctx context.Context, req *pb.Request) (*Response, error) {
 		reqBody = bytes.NewBufferString(req.Body)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, method, u, reqBody)
+	// use the existing context as that holds the deadline info
+	httpReq, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -78,10 +81,13 @@ func Request(ctx context.Context, req *pb.Request) (*Response, error) {
 		httpReq.Header.Add("Authorization", req.Authorization)
 	}
 
+	startReqTime := time.Now()
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
+
+	prometheus.OutboundRequests.Observe(float64(time.Since(startReqTime).Milliseconds()))
 
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)

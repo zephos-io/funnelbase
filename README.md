@@ -44,11 +44,33 @@ Once these sequences are completed, the API response data is sent back to the cl
 # Features
 
 * Customisable rate limiting for each API
-* Caching of responses to avoid request duplication
+* Caching of responses to avoid request duplication and improve response times
+* Handling of batch requests and splitting batch items out for caching ([read more below](#batch-requests))
 * Cancellation of requests if it exceeds the requests deadline
 * Ability to retry if the request fails
 * Monitor requests for backoff requests from APIs and respond accordingly
 * Exposes metrics for Prometheus about rate limiter and caching statistics
+
+## Batch requests
+
+For non batch requests
+like [https://api.spotify.com/v1/albums/abc](https://developer.spotify.com/documentation/web-api/reference/get-an-album)
+that get a single album, fetching from and saving to
+the cache is trivial, however, a lot of requests to Spotify are 'batched' in order to fetch multiple albums at once.
+These URL's look like
+[https://api.spotify.com/v1/albums?ids=abc,xyz](https://developer.spotify.com/documentation/web-api/reference/get-multiple-albums).
+This makes fetching from and saving to the cache complicated as you want to save the individual results of each item
+id (abc and xyz) rather than the complete response of the batch request.
+
+In order to do this, `batch*` fields exist in the gRPC spec to handle extracting and dealing with batch requests. An
+explanation of each can be found in `api/funnelbase.proto`.
+
+In short, for batch requests that have requested caching, item ids are extracted from the batch request URL and each are
+checked for its existence in the cache. If they do exist in the cache, those items ids are removed from the batch
+request URL. Once the request is completed, the cached item responses and the live response from the batch request are
+merged together and sent back to the client. In order to the save the new live data from the batch request in the cache,
+each item in the batch response is split out and saved in the cache under the URL that would have fetched the individual
+item ([https://api.spotify.com/v1/albums/abc](https://developer.spotify.com/documentation/web-api/reference/get-an-album))
 
 # Usage
 
