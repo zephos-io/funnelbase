@@ -26,7 +26,7 @@ func ValidateRequest(request *pb.Request) error {
 		return fmt.Errorf("url is required")
 	}
 
-	if _, err := url.ParseRequestURI(request.Url); err != nil {
+	if _, err := url.Parse(request.Url); err != nil {
 		return fmt.Errorf("url is invalid")
 	}
 
@@ -56,7 +56,7 @@ func (resp *Response) ConvertResponseToGRPC() (*pb.Response, error) {
 func Request(ctx context.Context, req *pb.Request) (*Response, error) {
 	client := &http.Client{}
 
-	u := req.Url
+	url := req.Url
 	method := req.Method.String()
 
 	var reqBody io.Reader = nil
@@ -65,7 +65,7 @@ func Request(ctx context.Context, req *pb.Request) (*Response, error) {
 		reqBody = bytes.NewBufferString(req.Body)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, method, u, reqBody)
+	httpReq, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
 		return nil, err
 	}
