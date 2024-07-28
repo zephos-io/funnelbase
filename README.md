@@ -49,7 +49,7 @@ Once these sequences are completed, the API response data is sent back to the cl
 * Cancellation of requests if it exceeds the requests deadline
 * Ability to retry if the request fails
 * Monitor requests for backoff requests from APIs and respond accordingly
-* Exposes metrics for Prometheus about rate limiter and caching statistics
+* Exposes metrics for Prometheus
 
 ## Batch requests
 
