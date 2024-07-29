@@ -4,6 +4,7 @@
     <working_directory value="$PROJECT_DIR$" />
     <envs>
       <env name="APP_ENV" value="development" />
+      <env name="REDIS_ADDR" value="localhost:6310" />
     </envs>
     <EXTENSION ID="software.aws.toolkits.jetbrains.core.execution.GoAwsConnectionRunConfigurationExtension">
       <option name="credential" />
