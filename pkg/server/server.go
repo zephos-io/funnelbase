@@ -73,7 +73,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 		batchReqItems := s.Cache.BatchGetCache(req, batchCachedItems)
 
 		prometheus.BatchItems.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Add(float64(len(batchCachedItems) + len(batchReqItems)))
-		prometheus.BatchItemsCached.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Add(float64(len(batchReqItems)))
+		prometheus.BatchItemsCached.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Add(float64(len(batchCachedItems)))
 
 		reqLog.Debug().Msgf("improved batch request from %d items to %d", len(batchCachedItems)+len(batchReqItems), len(batchReqItems))
 
