@@ -20,7 +20,7 @@ var (
 			Subsystem: "grpc",
 			Name:      "reqs_received_total",
 			Help:      "Total number of requests received through gRPC",
-		}, []string{"rate_limiter_name"},
+		}, []string{"rate_limiter_name", "limit_name", "queue_priority", "client"},
 	)
 
 	CachedResponses = promauto.NewCounterVec(
@@ -28,8 +28,8 @@ var (
 			Namespace: "funnelbase",
 			Subsystem: "grpc",
 			Name:      "cached_responses_total",
-			Help:      "Total number of responses from gRPC that were from the cache",
-		}, []string{"rate_limiter_name"},
+			Help:      "Total number of responses from gRPC that were fully cached (including batch requests)",
+		}, []string{"rate_limiter_name", "limit_name", "queue_priority", "client"},
 	)
 
 	ErrorResponses = promauto.NewCounterVec(
@@ -38,7 +38,7 @@ var (
 			Subsystem: "grpc",
 			Name:      "error_responses_total",
 			Help:      "Total number of gRPC responses that were errors",
-		}, []string{"rate_limiter_name"},
+		}, []string{"rate_limiter_name", "limit_name", "queue_priority", "client"},
 	)
 
 	SuccessResponses = promauto.NewCounterVec(
@@ -47,7 +47,7 @@ var (
 			Subsystem: "grpc",
 			Name:      "success_responses_total",
 			Help:      "Total number of gRPC responses that were successful",
-		}, []string{"rate_limiter_name"},
+		}, []string{"rate_limiter_name", "limit_name", "queue_priority", "client"},
 	)
 )
 
@@ -111,6 +111,27 @@ var (
 			Name:      "reqs",
 			Help:      "Total number of outbound requests performed and latencies (in milliseconds)",
 		},
+	)
+)
+
+// batch metrics
+var (
+	BatchItems = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "funnelbase",
+			Subsystem: "cache",
+			Name:      "batch_items_total",
+			Help:      "Total number of items in batch requests",
+		}, []string{"rate_limiter_name", "limit_name", "queue_priority", "client"},
+	)
+
+	BatchItemsCached = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "funnelbase",
+			Subsystem: "cache",
+			Name:      "batch_items_cached_total",
+			Help:      "Total number of items in batch requests that exist in the cache",
+		}, []string{"rate_limiter_name", "limit_name", "queue_priority", "client"},
 	)
 )
 
