@@ -29,19 +29,19 @@ type Server struct {
 func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Response, err error) {
 	ctx = context.WithValue(ctx, "retry_count", 0)
 
-	prometheus.ReqsReceived.WithLabelValues(s.RateLimiter.Name).Inc()
+	prometheus.ReqsReceived.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
 
 	start := time.Now()
 
-	reqLog := logger.With().Time("recv_time", start).Str("url", req.Url).Str("method", req.Method.String()).Str("priority", req.Priority.String()).Int32("cache", req.CacheLifespan).Logger()
+	reqLog := logger.With().Time("recv_time", start).Str("url", req.Url).Str("method", req.Method.String()).Str("priority", req.Priority.String()).Str("client", req.Client).Int32("cache", req.CacheLifespan).Logger()
 
 	reqLog.Debug().Msgf("received request")
 
 	defer func() {
 		if err != nil {
-			prometheus.ErrorResponses.WithLabelValues(s.RateLimiter.Name).Inc()
+			prometheus.ErrorResponses.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
 		} else {
-			prometheus.SuccessResponses.WithLabelValues(s.RateLimiter.Name).Inc()
+			prometheus.SuccessResponses.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
 		}
 
 		reqLog.Debug().Msgf("replying after %s", time.Since(start))
@@ -60,7 +60,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 
 		if cachedResp != nil {
 			reqLog.Debug().Msgf("replying with cached response")
-			prometheus.CachedResponses.WithLabelValues(s.RateLimiter.Name).Inc()
+			prometheus.CachedResponses.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
 			return cachedResp.ConvertResponseToGRPC()
 		}
 
@@ -71,6 +71,9 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 	batchCachedItems := make(map[string]*cache.BatchItem)
 	if req.CacheLifespan > 0 && req.BatchItemUrl != "" {
 		batchReqItems := s.Cache.BatchGetCache(req, batchCachedItems)
+
+		prometheus.BatchItems.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Add(float64(len(batchCachedItems) + len(batchReqItems)))
+		prometheus.BatchItemsCached.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Add(float64(len(batchReqItems)))
 
 		reqLog.Debug().Msgf("improved batch request from %d items to %d", len(batchCachedItems)+len(batchReqItems), len(batchReqItems))
 
@@ -92,6 +95,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 					Body: string(batchResponseStr),
 				}
 
+				prometheus.CachedResponses.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
 				return batchResponse.ConvertResponseToGRPC()
 			}
 		} else {
