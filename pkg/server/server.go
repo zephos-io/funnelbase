@@ -255,7 +255,14 @@ func (s *Server) AddRateLimit(ctx context.Context, req *pb.RateLimit) (*pb.RateL
 		return nil, fmt.Errorf("limit is required")
 	}
 
-	if s.RateLimiter.LimitExists(req.Name) {
+	limit := s.RateLimiter.GetLimit(req.Name)
+	if limit != nil {
+		if limit.Rules[0].ReqLimit != req.Limit {
+			logger.Info().Msgf("updating %q limit from %d to %d", req.Name, limit.Rules[0].ReqLimit, req.Limit)
+			limit.Rules[0].ReqLimit = req.Limit
+			return &pb.RateLimitResponse{Response: "updated limit"}, nil
+		}
+
 		return &pb.RateLimitResponse{Response: "limit already exists"}, nil
 	}
 

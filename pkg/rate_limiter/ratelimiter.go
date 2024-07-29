@@ -19,29 +19,29 @@ var (
 
 type RateLimiter struct {
 	Name   string
-	limits []*limit
+	limits []*Limit
 }
 
-type limit struct {
+type Limit struct {
 	rateLimiter *RateLimiter
 	name        string
 	queue       *util.PriorityQueue
-	rules       []rule
+	Rules       []*Rule
 	lastRequest time.Time
 	// status code for backoff
 	backoffStatusCode int
 	// header to identify backoff amount
 	retryAfterHeader string
-	// time at which the limit is allowed to let requests through
+	// time at which the Limit is allowed to let requests through
 	blockedUntil *time.Time
 }
 
-type rule struct {
-	limit    *limit
+type Rule struct {
+	limit    *Limit
 	name     string
 	interval time.Duration
 	//isRollingWindow bool
-	reqLimit int32
+	ReqLimit int32
 }
 
 type queuedRequest struct {
@@ -59,15 +59,15 @@ func New(name string) *RateLimiter {
 }
 
 // AddLimit adds a limit to the rate limiter
-func (rl *RateLimiter) AddLimit(name string, interval time.Duration, requestLimit int32, backoffStatusCode int, retryAfterHeader string) *limit {
-	rule := rule{
+func (rl *RateLimiter) AddLimit(name string, interval time.Duration, requestLimit int32, backoffStatusCode int, retryAfterHeader string) *Limit {
+	rule := &Rule{
 		name:     name,
 		interval: interval,
 		//isRollingWindow: true,
-		reqLimit: requestLimit,
+		ReqLimit: requestLimit,
 	}
 
-	limit := &limit{
+	limit := &Limit{
 		name:              name,
 		lastRequest:       time.UnixMilli(0),
 		backoffStatusCode: backoffStatusCode,
@@ -86,7 +86,7 @@ func (rl *RateLimiter) AddLimit(name string, interval time.Duration, requestLimi
 	// 2 highest priority
 	limit.queue = util.NewPriorityQueue(len(pb.RequestPriority_name) - 1)
 
-	limit.rules = append(limit.rules, rule)
+	limit.Rules = append(limit.Rules, rule)
 	rl.limits = append(rl.limits, limit)
 
 	logger.Info().Msgf("added rate limit %q to %q", name, rl.Name)
@@ -94,15 +94,15 @@ func (rl *RateLimiter) AddLimit(name string, interval time.Duration, requestLimi
 	return limit
 }
 
-// LimitExists checks to see if the limit exists in the rate limiter
-func (rl *RateLimiter) LimitExists(name string) bool {
+// GetLimit gets a limit from the rate limiter that matches the name
+func (rl *RateLimiter) GetLimit(name string) *Limit {
 	for _, l := range rl.limits {
 		if l.name == name {
-			return true
+			return l
 		}
 	}
 
-	return false
+	return nil
 }
 
 // Monitor observes the rate limiter on a timer to send to Prometheus
@@ -128,18 +128,20 @@ func (rl *RateLimiter) Monitor() {
 }
 
 // StartQueueHandler manages the throughput of requests through the rate limiter
-func (l *limit) StartQueueHandler() {
+func (l *Limit) StartQueueHandler() {
 	logger.Info().Msgf("starting queue handler for limit: %s", l.name)
-	r := l.rules[0]
-	timeBetweenReqs := time.Duration(r.interval.Milliseconds()/int64(r.reqLimit)) * time.Millisecond
+	r := l.Rules[0]
 
 	for {
 		if l.queue.Len() > 0 {
 			if l.blockedUntil == nil {
-				r := l.queue.RemoveWait()
+				req := l.queue.RemoveWait()
 
 				if r != nil {
-					qr := r.(*queuedRequest)
+					qr := req.(*queuedRequest)
+
+					// timeBetweenReqs should go here as it can update in real time
+					timeBetweenReqs := time.Duration(r.interval.Milliseconds()/int64(r.ReqLimit)) * time.Millisecond
 
 					labeledReqsAllowed := prometheus.ReqsAllowed.WithLabelValues(l.rateLimiter.Name, l.name, qr.request.Priority.Enum().String(), qr.request.Client)
 					labeledReqsWaitTime := prometheus.ReqsWaitTime.WithLabelValues(l.rateLimiter.Name, l.name, qr.request.Priority.Enum().String(), qr.request.Client)
@@ -174,8 +176,8 @@ func (l *limit) StartQueueHandler() {
 	}
 }
 
-// getLimitForRequest returns the limit of a given request
-func (rl *RateLimiter) getLimitForRequest(req *pb.Request) *limit {
+// getLimitForRequest returns the Limit of a given request
+func (rl *RateLimiter) getLimitForRequest(req *pb.Request) *Limit {
 	for _, l := range rl.limits {
 		if l.name == req.RateLimit {
 			return l
