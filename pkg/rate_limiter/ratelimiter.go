@@ -168,7 +168,7 @@ func (l *Limit) StartQueueHandler() {
 				}
 			} else {
 				timeUntilUnblocked := l.blockedUntil.Sub(time.Now())
-				logger.Info().Msgf("%q limit is sleeping for %s seconds before continuing", l.name, timeUntilUnblocked)
+				logger.Info().Msgf("%q limit is sleeping for %s before continuing", l.name, timeUntilUnblocked)
 				time.Sleep(timeUntilUnblocked)
 				l.blockedUntil = nil
 			}
@@ -244,7 +244,10 @@ func (rl *RateLimiter) CheckForBackoff(req *pb.Request, resp *request.Response) 
 				return err
 			}
 
-			blockedUntilTime := time.Now().Add(time.Duration(backoffSeconds) * time.Second)
+			backoffDuration := time.Duration(backoffSeconds) * time.Second
+			// add a buffer to the backoff just in case there is any overlap in requests which may trigger an extension
+			backoffBuffer := 2 * time.Second
+			blockedUntilTime := time.Now().Add(backoffDuration + backoffBuffer)
 			matchingLimit.blockedUntil = &blockedUntilTime
 		}
 	}

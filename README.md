@@ -44,6 +44,7 @@ Once these sequences are completed, the API response data is sent back to the cl
 # Features
 
 * Customisable rate limiting for each API
+* Priority queue to push higher priority requests through sooner
 * Caching of responses to avoid request duplication and improve response times
 * Handling of batch requests and splitting batch items out for caching ([read more below](#batch-requests))
 * Cancellation of requests if it exceeds the requests deadline
