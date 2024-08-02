@@ -87,7 +87,7 @@ func Request(ctx context.Context, req *pb.Request) (*Response, error) {
 		return nil, err
 	}
 
-	prometheus.OutboundRequests.Observe(float64(time.Since(startReqTime).Milliseconds()))
+	prometheus.OutboundRequests.WithLabelValues(req.RateLimit, req.Client).Observe(float64(time.Since(startReqTime).Milliseconds()))
 
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)

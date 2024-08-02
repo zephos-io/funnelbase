@@ -104,13 +104,13 @@ var (
 
 // outbound api request metrics
 var (
-	OutboundRequests = promauto.NewSummary(
+	OutboundRequests = promauto.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Namespace: "funnelbase",
 			Subsystem: "outbound_requester",
 			Name:      "reqs",
 			Help:      "Total number of outbound requests performed and latencies (in milliseconds)",
-		},
+		}, []string{"limit_name", "client"},
 	)
 )
 
