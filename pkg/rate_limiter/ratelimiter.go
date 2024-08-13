@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 	pb "zephos/funnelbase/api"
 	"zephos/funnelbase/pkg/request"
@@ -34,6 +35,9 @@ type Limit struct {
 	retryAfterHeader string
 	// time at which the Limit is allowed to let requests through
 	blockedUntil *time.Time
+
+	mutex sync.Mutex
+	cond  *sync.Cond
 }
 
 type Rule struct {
@@ -74,6 +78,8 @@ func (rl *RateLimiter) AddLimit(name string, interval time.Duration, requestLimi
 		retryAfterHeader:  retryAfterHeader,
 		blockedUntil:      nil,
 	}
+
+	limit.cond = sync.NewCond(&limit.mutex)
 
 	rule.limit = limit
 	limit.rateLimiter = rl
@@ -133,11 +139,15 @@ func (l *Limit) StartQueueHandler() {
 	r := l.Rules[0]
 
 	for {
-		if l.queue.Len() > 0 {
+		func() {
+			l.cond.L.Lock()
+			defer l.cond.L.Unlock()
+
+			l.cond.Wait()
 			if l.blockedUntil == nil {
 				req := l.queue.RemoveWait()
 
-				if r != nil {
+				if r != nil && req != nil {
 					qr := req.(*queuedRequest)
 
 					// timeBetweenReqs should go here as it can update in real time
@@ -172,7 +182,7 @@ func (l *Limit) StartQueueHandler() {
 				time.Sleep(timeUntilUnblocked)
 				l.blockedUntil = nil
 			}
-		}
+		}()
 	}
 }
 
@@ -205,6 +215,7 @@ func (rl *RateLimiter) LimitRequest(ctx context.Context, req *pb.Request) error 
 
 	rlr.timeQueued = time.Now()
 	matchingLimit.queue.Add(rlr, priority)
+	matchingLimit.cond.Signal()
 
 	select {
 	case <-ctx.Done():
