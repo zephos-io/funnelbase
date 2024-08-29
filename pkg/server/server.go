@@ -39,12 +39,13 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 
 	defer func() {
 		if err != nil {
+			reqLog.Warn().Err(err).Msgf("replying after %s due to error", time.Since(start))
 			prometheus.ErrorResponses.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
 		} else {
+			reqLog.Debug().Msgf("replying after %s", time.Since(start))
 			prometheus.SuccessResponses.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
 		}
 
-		reqLog.Debug().Msgf("replying after %s", time.Since(start))
 	}()
 
 	if err := request.ValidateRequest(req); err != nil {
