@@ -67,8 +67,11 @@ func Request(ctx context.Context, req *pb.Request) (*Response, error) {
 		reqBody = bytes.NewBufferString(req.Body)
 	}
 
-	// use the existing context as that holds the deadline info
-	httpReq, err := http.NewRequestWithContext(ctx, method, url, reqBody)
+	// use the parents context to create a new context specifically for the request with a 30-second timeout
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(reqCtx, method, url, reqBody)
 	if err != nil {
 		return nil, err
 	}
