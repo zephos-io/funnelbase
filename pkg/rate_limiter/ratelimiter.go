@@ -140,43 +140,64 @@ func (l *Limit) StartQueueHandler() {
 
 	for {
 		func() {
-			if l.blockedUntil == nil {
-				req := l.queue.RemoveWait()
+			l.cond.L.Lock()
+			defer l.cond.L.Unlock()
 
-				if r != nil && req != nil {
-					qr := req.(*queuedRequest)
+			// wait until signal is received that something has entered the queue
+			l.cond.Wait()
 
-					// timeBetweenReqs should go here as it can update in real time
-					timeBetweenReqs := time.Duration(r.interval.Milliseconds()/int64(r.ReqLimit)) * time.Millisecond
+			// loop until nothing exists in the queue
+			// this system was implemented to avoid potential request leaks caused by uneven amount of signals and requests. there exists
+			// a scenario where the queue wont be cleared as it was never signalled. think this is just due to timings when the queue gets flooded
+			for {
+				// only peek, don't remove. still need to check if blocked below
+				reqPeek := l.queue.Peek()
 
-					labeledReqsAllowed := prometheus.ReqsAllowed.WithLabelValues(l.rateLimiter.Name, l.name, qr.request.Priority.Enum().String(), qr.request.Client)
-					labeledReqsWaitTime := prometheus.ReqsWaitTime.WithLabelValues(l.rateLimiter.Name, l.name, qr.request.Priority.Enum().String(), qr.request.Client)
+				if r != nil && reqPeek != nil {
+					// check if there is an outstanding block
+					if l.blockedUntil == nil {
 
-					allowedNextReq := l.lastRequest.Add(timeBetweenReqs)
+						// remove (dont wait). still potential for it to be nil so check just in case
+						req := l.queue.Remove()
 
-					timeUntilNextAllowed := allowedNextReq.Sub(time.Now())
+						if req != nil {
+							qr := req.(*queuedRequest)
 
-					waitTime := timeUntilNextAllowed
+							// timeBetweenReqs should go here as it can update in real time
+							timeBetweenReqs := time.Duration(r.interval.Milliseconds()/int64(r.ReqLimit)) * time.Millisecond
 
-					select {
-					case <-qr.ctx.Done():
-						// in here when the context is cancelled due to timeout
-					case <-time.After(waitTime):
-						qr.release <- waitTime
-						l.lastRequest = time.Now()
+							labeledReqsAllowed := prometheus.ReqsAllowed.WithLabelValues(l.rateLimiter.Name, l.name, qr.request.Priority.Enum().String(), qr.request.Client)
+							labeledReqsWaitTime := prometheus.ReqsWaitTime.WithLabelValues(l.rateLimiter.Name, l.name, qr.request.Priority.Enum().String(), qr.request.Client)
 
-						labeledReqsAllowed.Inc()
+							allowedNextReq := l.lastRequest.Add(timeBetweenReqs)
 
-						timeSinceQueued := time.Now().Sub(qr.timeQueued)
-						labeledReqsWaitTime.Observe(float64(timeSinceQueued.Milliseconds()))
+							timeUntilNextAllowed := allowedNextReq.Sub(time.Now())
+
+							waitTime := timeUntilNextAllowed
+
+							select {
+							case <-qr.ctx.Done():
+								// in here when the context is cancelled due to timeout
+							case <-time.After(waitTime):
+								qr.release <- waitTime
+								l.lastRequest = time.Now()
+
+								labeledReqsAllowed.Inc()
+
+								timeSinceQueued := time.Now().Sub(qr.timeQueued)
+								labeledReqsWaitTime.Observe(float64(timeSinceQueued.Milliseconds()))
+							}
+						}
+
+					} else {
+						timeUntilUnblocked := l.blockedUntil.Sub(time.Now())
+						logger.Info().Msgf("%q limit is sleeping for %s before continuing", l.name, timeUntilUnblocked)
+						time.Sleep(timeUntilUnblocked)
+						l.blockedUntil = nil
 					}
-
+				} else {
+					break
 				}
-			} else {
-				timeUntilUnblocked := l.blockedUntil.Sub(time.Now())
-				logger.Info().Msgf("%q limit is sleeping for %s before continuing", l.name, timeUntilUnblocked)
-				time.Sleep(timeUntilUnblocked)
-				l.blockedUntil = nil
 			}
 		}()
 	}
