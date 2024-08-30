@@ -140,10 +140,6 @@ func (l *Limit) StartQueueHandler() {
 
 	for {
 		func() {
-			l.cond.L.Lock()
-			defer l.cond.L.Unlock()
-
-			l.cond.Wait()
 			if l.blockedUntil == nil {
 				req := l.queue.RemoveWait()
 

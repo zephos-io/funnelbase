@@ -45,8 +45,10 @@ func NewPriorityQueue(maxPriority int) *PriorityQueue {
 // Add an item to the PriorityQueue with a specified priority.
 // If the priority is out-of-range it is clipped.
 func (this *PriorityQueue) Add(v interface{}, priority int) {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+	// had to comment out this queue lock as it wouldn't proceed if there was already another goroutine that was
+	// waiting on something being added, causing a deadlock scenario. it locks at the queue level below once added anyway
+	//this.mutex.Lock()
+	//defer this.mutex.Unlock()
 
 	priority = ClipInt(priority, 0, this.max)
 
@@ -136,9 +138,10 @@ func (this *PriorityQueue) RemoveWait() interface{} {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
 
-	if this.total == 0 {
-		return nil
-	}
+	// commented out as it was stopping the blocking procedure
+	//if this.total == 0 {
+	//	return nil
+	//}
 
 	next := this.nextQueue()
 	ret := this.queues[next].RemoveWait()
