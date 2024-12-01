@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion8
 
 const (
 	Funnelbase_QueueRequest_FullMethodName = "/requester.Funnelbase/QueueRequest"
+	Funnelbase_AddInterface_FullMethodName = "/requester.Funnelbase/AddInterface"
 	Funnelbase_AddRateLimit_FullMethodName = "/requester.Funnelbase/AddRateLimit"
 )
 
@@ -28,6 +29,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type FunnelbaseClient interface {
 	QueueRequest(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
+	AddInterface(ctx context.Context, in *Interface, opts ...grpc.CallOption) (*InterfaceResponse, error)
 	AddRateLimit(ctx context.Context, in *RateLimit, opts ...grpc.CallOption) (*RateLimitResponse, error)
 }
 
@@ -49,6 +51,16 @@ func (c *funnelbaseClient) QueueRequest(ctx context.Context, in *Request, opts .
 	return out, nil
 }
 
+func (c *funnelbaseClient) AddInterface(ctx context.Context, in *Interface, opts ...grpc.CallOption) (*InterfaceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InterfaceResponse)
+	err := c.cc.Invoke(ctx, Funnelbase_AddInterface_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *funnelbaseClient) AddRateLimit(ctx context.Context, in *RateLimit, opts ...grpc.CallOption) (*RateLimitResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RateLimitResponse)
@@ -64,6 +76,7 @@ func (c *funnelbaseClient) AddRateLimit(ctx context.Context, in *RateLimit, opts
 // for forward compatibility
 type FunnelbaseServer interface {
 	QueueRequest(context.Context, *Request) (*Response, error)
+	AddInterface(context.Context, *Interface) (*InterfaceResponse, error)
 	AddRateLimit(context.Context, *RateLimit) (*RateLimitResponse, error)
 	mustEmbedUnimplementedFunnelbaseServer()
 }
@@ -74,6 +87,9 @@ type UnimplementedFunnelbaseServer struct {
 
 func (UnimplementedFunnelbaseServer) QueueRequest(context.Context, *Request) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueueRequest not implemented")
+}
+func (UnimplementedFunnelbaseServer) AddInterface(context.Context, *Interface) (*InterfaceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddInterface not implemented")
 }
 func (UnimplementedFunnelbaseServer) AddRateLimit(context.Context, *RateLimit) (*RateLimitResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddRateLimit not implemented")
@@ -109,6 +125,24 @@ func _Funnelbase_QueueRequest_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Funnelbase_AddInterface_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Interface)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FunnelbaseServer).AddInterface(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Funnelbase_AddInterface_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FunnelbaseServer).AddInterface(ctx, req.(*Interface))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Funnelbase_AddRateLimit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RateLimit)
 	if err := dec(in); err != nil {
@@ -137,6 +171,10 @@ var Funnelbase_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueueRequest",
 			Handler:    _Funnelbase_QueueRequest_Handler,
+		},
+		{
+			MethodName: "AddInterface",
+			Handler:    _Funnelbase_AddInterface_Handler,
 		},
 		{
 			MethodName: "AddRateLimit",

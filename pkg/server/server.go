@@ -21,15 +21,21 @@ var (
 
 type Server struct {
 	pb.UnimplementedFunnelbaseServer
-	Cache       *cache.Cache
-	RateLimiter *rate_limiter.RateLimiter
+	Cache        *cache.Cache
+	RateLimiters map[string]*rate_limiter.RateLimiter
 }
 
 // QueueRequest handles gRPC calls to request
 func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Response, err error) {
 	ctx = context.WithValue(ctx, "retry_count", 0)
 
-	prometheus.ReqsReceived.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
+	rl, ok := s.RateLimiters[req.Interface]
+
+	if !ok {
+		return nil, fmt.Errorf("interface %q not found", req.Interface)
+	}
+
+	prometheus.ReqsReceived.WithLabelValues(rl.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
 
 	start := time.Now()
 
@@ -40,10 +46,10 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 	defer func() {
 		if err != nil {
 			reqLog.Warn().Err(err).Msgf("replying after %s due to error", time.Since(start))
-			prometheus.ErrorResponses.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
+			prometheus.ErrorResponses.WithLabelValues(rl.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
 		} else {
 			reqLog.Debug().Msgf("replying after %s", time.Since(start))
-			prometheus.SuccessResponses.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
+			prometheus.SuccessResponses.WithLabelValues(rl.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
 		}
 
 	}()
@@ -61,7 +67,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 
 		if cachedResp != nil {
 			reqLog.Debug().Msgf("replying with cached response")
-			prometheus.CachedResponses.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
+			prometheus.CachedResponses.WithLabelValues(rl.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
 			return cachedResp.ConvertResponseToGRPC()
 		}
 
@@ -73,8 +79,8 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 	if req.CacheLifespan > 0 && req.BatchItemUrl != "" {
 		batchReqItems := s.Cache.BatchGetCache(req, batchCachedItems)
 
-		prometheus.BatchItems.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Add(float64(len(batchCachedItems) + len(batchReqItems)))
-		prometheus.BatchItemsCached.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Add(float64(len(batchCachedItems)))
+		prometheus.BatchItems.WithLabelValues(rl.Name, req.RateLimit, req.Priority.String(), req.Client).Add(float64(len(batchCachedItems) + len(batchReqItems)))
+		prometheus.BatchItemsCached.WithLabelValues(rl.Name, req.RateLimit, req.Priority.String(), req.Client).Add(float64(len(batchCachedItems)))
 
 		reqLog.Debug().Msgf("improved batch request from %d items to %d", len(batchCachedItems)+len(batchReqItems), len(batchReqItems))
 
@@ -96,7 +102,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 					Body: string(batchResponseStr),
 				}
 
-				prometheus.CachedResponses.WithLabelValues(s.RateLimiter.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
+				prometheus.CachedResponses.WithLabelValues(rl.Name, req.RateLimit, req.Priority.String(), req.Client).Inc()
 				return batchResponse.ConvertResponseToGRPC()
 			}
 		} else {
@@ -121,7 +127,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 
 		if ctx.Value("retry_count").(int) <= int(req.Retries) || int(req.Retries) <= 0 {
 			// add request to rate limiter
-			err := s.RateLimiter.LimitRequest(ctx, req)
+			err := rl.LimitRequest(ctx, req)
 			if err != nil {
 				return nil, err
 			}
@@ -137,7 +143,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 			}
 
 			// check to see if backoff has been requested by the API
-			if err := s.RateLimiter.CheckForBackoff(req, resp); err != nil {
+			if err := rl.CheckForBackoff(req, resp); err != nil {
 				return nil, err
 			}
 
@@ -246,8 +252,33 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 	}
 }
 
+// AddInterface handles gRPC calls to add an interface (rate limiter) i.e. spotify, etc.
+func (s *Server) AddInterface(ctx context.Context, req *pb.Interface) (*pb.InterfaceResponse, error) {
+	if req.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+
+	_, ok := s.RateLimiters[req.Name]
+
+	if ok {
+		return nil, fmt.Errorf("rate limiter %q already exists", req.Name)
+	}
+
+	rl := rate_limiter.New(req.Name)
+
+	s.RateLimiters[req.Name] = rl
+
+	go rl.Monitor()
+
+	return &pb.InterfaceResponse{Response: "successfully created new interface"}, nil
+}
+
 // AddRateLimit handles gRPC calls to add a limit to the rate limiter
 func (s *Server) AddRateLimit(ctx context.Context, req *pb.RateLimit) (*pb.RateLimitResponse, error) {
+	if req.Interface == "" {
+		return nil, fmt.Errorf("interface is required")
+	}
+
 	if req.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
@@ -260,7 +291,13 @@ func (s *Server) AddRateLimit(ctx context.Context, req *pb.RateLimit) (*pb.RateL
 		return nil, fmt.Errorf("limit is required")
 	}
 
-	limit := s.RateLimiter.GetLimit(req.Name)
+	rl, ok := s.RateLimiters[req.Interface]
+
+	if !ok {
+		return nil, fmt.Errorf("interface %q not found", req.Interface)
+	}
+
+	limit := rl.GetLimit(req.Name)
 	if limit != nil {
 		if limit.Rules[0].ReqLimit != req.Limit {
 			logger.Info().Msgf("updating %q limit from %d to %d", req.Name, limit.Rules[0].ReqLimit, req.Limit)
@@ -271,7 +308,7 @@ func (s *Server) AddRateLimit(ctx context.Context, req *pb.RateLimit) (*pb.RateL
 		return &pb.RateLimitResponse{Response: "limit already exists"}, nil
 	}
 
-	l := s.RateLimiter.AddLimit(req.Name, time.Duration(req.Period)*time.Millisecond, req.Limit, int(req.BackoffStatusCode), req.RetryAfterHeader)
+	l := rl.AddLimit(req.Name, time.Duration(req.Period)*time.Millisecond, req.Limit, int(req.BackoffStatusCode), req.RetryAfterHeader)
 	go l.StartQueueHandler()
 
 	return &pb.RateLimitResponse{Response: "successfully created new limit"}, nil

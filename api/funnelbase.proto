@@ -11,6 +11,7 @@ message Headers {
 
 service Funnelbase {
   rpc QueueRequest (Request) returns (Response) {}
+  rpc AddInterface (Interface) returns (InterfaceResponse) {}
   rpc AddRateLimit (RateLimit) returns (RateLimitResponse) {}
 }
 
@@ -74,14 +75,17 @@ message Request {
   // for the above example, the batchParamId would be 'ids'
   string batchParamId = 11;
 
+  // name of the interface which the request should be added to
+  string interface = 12;
+
   // name of the rate limit the request should be added to
-  string rateLimit = 12;
+  string rateLimit = 13;
 
   // number of tries if the request fails
-  int32 retries = 13;
+  int32 retries = 14;
 
   // name of the client sending the request
-  string client = 14;
+  string client = 15;
 }
 
 
@@ -94,15 +98,26 @@ message Response {
 }
 
 message RateLimit {
-  string name = 1;
+  // name of the interface
+  string interface = 1;
+  // name of the rate limit
+  string name = 2;
   // status code from the api to tell the client to backoff as its hitting rate limits
-  int32 backoffStatusCode = 2; // 429
+  int32 backoffStatusCode = 3; // 429
   // the header received from the api telling the client how long to wait before sending more requests
-  string retryAfterHeader = 3; // Retry-After
+  string retryAfterHeader = 4; // Retry-After
   // time in milliseconds that the rate limit is based on
-  int64 period = 4;
+  int64 period = 5;
   // number of requests per limit that will be allowed through
-  int32 limit = 5;
+  int32 limit = 6;
+}
+
+message Interface {
+  string name = 1;
+}
+
+message InterfaceResponse {
+  string response = 1;
 }
 
 message RateLimitResponse {
