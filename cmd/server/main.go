@@ -29,10 +29,6 @@ func main() {
 
 	go prometheus.ListenAndServe()
 
-	rl := rate_limiter.New("spotify")
-
-	go rl.Monitor()
-
 	// have to get as string as .GetInt returns 0
 	port := viper.GetString("port")
 
@@ -41,7 +37,10 @@ func main() {
 		logger.Fatal().Err(err).Msg("failed to listen")
 	}
 	s := grpc.NewServer()
-	pb.RegisterFunnelbaseServer(s, &server.Server{Cache: c, RateLimiter: rl})
+
+	rls := make(map[string]*rate_limiter.RateLimiter)
+
+	pb.RegisterFunnelbaseServer(s, &server.Server{Cache: c, RateLimiters: rls})
 	logger.Info().Msgf("funnelbase server listening at %v", lis.Addr())
 
 	// register reflection service on gRPC server.
