@@ -261,7 +261,7 @@ func (s *Server) AddInterface(ctx context.Context, req *pb.Interface) (*pb.Inter
 	_, ok := s.RateLimiters[req.Name]
 
 	if ok {
-		return nil, fmt.Errorf("interface %q already exists", req.Name)
+		return &pb.InterfaceResponse{Response: "interface already exists"}, nil
 	}
 
 	rl := rate_limiter.New(req.Name)
