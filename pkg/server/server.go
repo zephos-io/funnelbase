@@ -209,7 +209,7 @@ func (s *Server) QueueRequest(ctx context.Context, req *pb.Request) (resp *pb.Re
 							}
 
 						} else {
-							reqLog.Warn().Msgf("%q doesnt exist in batch array (item: %+v)", req.BatchItemId, jsonItem)
+							reqLog.Warn().Msgf("%q doesnt exist in batch array (item: %+v, resp: %s)", req.BatchItemId, jsonItem, resp.Body)
 						}
 					}
 
